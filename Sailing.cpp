@@ -1,5 +1,6 @@
 #include "Sailing.hpp"
 #include "SailingState.hpp"
+#include "MainMenuState.hpp"
 #include "States.hpp"
 
 Sailing::Sailing() :
@@ -21,6 +22,7 @@ void Sailing::handleMessage(const xy::Message & message)
 void Sailing::registerStates()
 {
 	m_stateStack.registerState<SailingState>(States::Sailing);
+    m_stateStack.registerState<MainMenuState>(States::MainMenu);
 
 	//first state
 	m_stateStack.pushState(States::Sailing);

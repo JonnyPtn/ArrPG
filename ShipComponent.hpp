@@ -2,6 +2,7 @@
 
 #include <xygine/components/Component.hpp>
 #include <xygine/Resource.hpp>
+#include <xygine/Entity.hpp>
 
 class ShipComponent : public xy::Component
 {
@@ -16,6 +17,8 @@ public:
 private:
 	xy::Physics::RigidBody*	m_body;
 	xy::Physics::RigidBody* m_sail;
+	xy::Entity*	m_sailE;
+	xy::Entity*	m_hullE;
 	xy::TextureResource		m_textures;
 };
 

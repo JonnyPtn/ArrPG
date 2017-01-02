@@ -16,7 +16,6 @@
 ShipComponent::ShipComponent(xy::MessageBus& mb, xy::Entity& entity) :
 	xy::Component(mb, this)
 {
-	
 	//hull
 	auto hull = xy::Component::create < xy::SfDrawableComponent<sf::RectangleShape>>(getMessageBus());
 	hull->getDrawable().setFillColor({ 244,164,96 }); //brown ship
@@ -27,41 +26,19 @@ ShipComponent::ShipComponent(xy::MessageBus& mb, xy::Entity& entity) :
 	hull->setOrigin(20.f, 50.f);
 	entity.addComponent(hull);
 
-	//sail
-	auto sailComp = xy::Component::create < xy::SfDrawableComponent<sf::RectangleShape>>(getMessageBus());
-	sailComp->getDrawable().setFillColor(sf::Color::White);
-	sailComp->setPosition(-2.5, 0);
-	sailComp->getDrawable().setSize({ 5.f, 50.f });
-
 	//collision hull
 	auto body = xy::Component::create<xy::Physics::RigidBody>(getMessageBus(), xy::Physics::BodyType::Dynamic);
 	body->setLinearDamping(0.5f);
-	body->setAngularDamping(0.5f);
+	body->setAngularDamping(10.f);
 	xy::Physics::CollisionRectangleShape hullShape({ -20,-50,40,100 });
 	hullShape.setDensity(1.0);
+    hullShape.setRestitution(1.0);
 	body->addCollisionShape(hullShape);
 	m_body = entity.addComponent(body);
-
-	//sail collision
-	auto sail = xy::Entity::create(mb);
-	auto sailBody = xy::Component::create<xy::Physics::RigidBody>(getMessageBus(), xy::Physics::BodyType::Dynamic);
-	xy::Physics::CollisionRectangleShape sailShape({ { 0.05f,0.f, 0.1f,50.f } });
-	sailShape.setDensity(50.f);
-	sailShape.setRestitution(0.f);
-	sailBody->addCollisionShape(sailShape);
-	sail->addComponent(sailComp);
-	m_sail = sail->addComponent(sailBody);
-	m_sail->setAngularDamping(1000000000);
-	entity.addChild(sail);
 }
 
 void ShipComponent::onStart(xy::Entity& entity)
 {
-	//hinge for sail
-	xy::Physics::HingeJoint hinge(*m_body, { 0.f,0.f });
-	auto pHinge = m_sail->addJoint(hinge);
-	//pHinge->setLimits(-45.f, 45.f);
-	//pHinge->limitEnabled(true);
 }
 
 ShipComponent::~ShipComponent()
@@ -72,7 +49,13 @@ void ShipComponent::entityUpdate(xy::Entity & entity, float dt)
 {
 	auto windVec = entity.getComponent<WindController>()->getWindVelocity();
 //	m_body->applyForceToCentre(xy::Util::Vector::rotate({ 0,-xy::Util::Vector::length(windVec) }, entity.getRotation()));
-	m_sail->applyForceToCentre(windVec);
+//	m_sail->applyForceToCentre(windVec);
+
+    auto currentRightNormal = m_body->getWorldVector({ 1,0 });
+    auto lateralVelocity = xy::Util::Vector::dot(currentRightNormal, m_body->getLinearVelocity()) * currentRightNormal;
+    auto impulse = m_body->getMass() * -lateralVelocity;
+    m_body->applyLinearImpulse(impulse, m_body->getWorldCentre());
+
 
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
 	{
@@ -86,4 +69,5 @@ void ShipComponent::entityUpdate(xy::Entity & entity, float dt)
 	{
 		m_body->applyTorque(-20);
 	}
+
 }

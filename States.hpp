@@ -2,5 +2,6 @@
 
 enum States
 {
+    MainMenu,
 	Sailing
 };

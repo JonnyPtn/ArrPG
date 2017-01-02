@@ -5,6 +5,9 @@
 #include <xygine/Scene.hpp>
 #include <xygine/physics/World.hpp>
 #include <xygine/Resource.hpp>
+#include <xygine/ui/Container.hpp>
+#include <xygine/ui/Label.hpp>
+#include <xygine/ui/Button.hpp>
 
 class SailingState : public xy::State
 {
@@ -24,6 +27,14 @@ private:
 	xy::Scene				m_scene;
 	xy::Entity*				m_boat;
 	sf::RectangleShape*		m_seaShape;
-	xy::TextureResource		m_seaTexture;
+	xy::TextureResource		m_textures;
+
+    //UI
+    xy::UI::Container               m_UIContainer;
+    xy::FontResource                m_UIFonts;
+    std::shared_ptr<xy::UI::Label>  m_xPosDisplay;
+    std::shared_ptr<xy::UI::Label>  m_yPosDisplay;
+    std::shared_ptr<xy::UI::Button> m_compass;
+    bool                            m_snapToNorth;
 };
 

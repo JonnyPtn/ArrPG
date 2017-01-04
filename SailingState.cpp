@@ -5,15 +5,17 @@
 #include <xygine/StateStack.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
 #include <xygine/App.hpp>
-#include "ShipComponent.hpp"
+#include "PlayerController.hpp"
 #include "WindController.hpp"
 #include <xygine/physics/RigidBody.hpp>
 #include <xygine/physics/CollisionRectangleShape.hpp>
 #include <xygine/physics/JointFriction.hpp>
 #include <SFML/Window/Event.hpp>
+#include "WorldController.hpp"
 #include <xygine/Resource.hpp>
 #include <xygine/util/Random.hpp>
 #include "IslandComponent.hpp"
+#include "Messages.hpp"
 
 SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context)
 	: xy::State(stack, context),
@@ -25,47 +27,23 @@ SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context)
 {
 	//no gravity because top-down
 	m_physicsWorld.setGravity({ 0.f,0.f });
-	//boat
-	auto boat = xy::Entity::create(m_messageBus);
-	auto ship = xy::Component::create<ShipComponent>(m_messageBus,*boat);
-	auto wind = xy::Component::create<WindController>(m_messageBus);
-	boat->addComponent(ship);
-	boat->addComponent(wind);
-	m_boat = boat.get();
-	m_scene.addEntity(boat,xy::Scene::Layer::FrontFront);
 
-	//sea
-	auto worldEnt = xy::Entity::create(m_messageBus);
-	auto seaComp = xy::Component::create < xy::SfDrawableComponent<sf::RectangleShape>>(m_messageBus);
-	m_seaShape = &(seaComp->getDrawable());
-	m_seaShape->setSize(context.defaultView.getSize());
-    m_seaShape->setScale({ 2.f,2.f });
-	m_seaShape->setTextureRect({ 0,0,int(context.defaultView.getSize().x),int(context.defaultView.getSize().y) });
-	m_seaShape->setTexture(&m_textures.get("Sea.png"));
-	m_seaShape->setOrigin(context.defaultView.getSize().x / 2, context.defaultView.getSize().y / 2);
-    m_textures.get("Sea.png").setRepeated(true);
-	worldEnt->addComponent(seaComp);
-  
+    //add the player Entity
+    auto player = xy::Entity::create(m_messageBus);
+    auto playerComponent = xy::Component::create<PlayerController>(m_messageBus);
+    auto bounds = player->globalBounds();
+    player->setOrigin(bounds.width / 2, bounds.height / 2);
+    player->addComponent(playerComponent);
+    m_player = m_scene.addEntity(player,xy::Scene::Layer::FrontFront);
 
-    //world physics body
-    auto worldBody = xy::Component::create<xy::Physics::RigidBody>(m_messageBus, xy::Physics::BodyType::Static);
+    //add the world Entity
+    auto world = xy::Entity::create(m_messageBus);
+    auto worldController = xy::Component::create<WorldController>(m_messageBus,xy::Util::Random::value(0,1));
+    world->addComponent(worldController);
+    m_world =  m_scene.addEntity(world, xy::Scene::Layer::BackRear);
 
-	//generate islands in random positions
-	auto fmax = 20000.f; //std::numeric_limits<float>::max();
-	auto fmin = -20000.f; //std::numeric_limits<float>::min();
-
-	//for now...
-	auto maxRadius = 1000.f;
-	auto minRadius = 100.f;
-	auto islandCount = 500;
-	while (islandCount--)
-	{
-		auto pos = sf::Vector2f(xy::Util::Random::value(fmin, fmax), xy::Util::Random::value(fmin, fmax));
-		auto island = xy::Component::create<IslandComponent>(m_messageBus, worldBody.get(), pos, xy::Util::Random::value(minRadius, maxRadius));
-		worldEnt->addComponent(island);
-	}
-    worldEnt->addComponent(worldBody);
-	m_scene.addEntity(worldEnt, xy::Scene::Layer::BackRear);
+    //set the sea colour (no worky without post process :( )
+    m_scene.setClearColour(sf::Color::Blue);
 
     //UI
 
@@ -88,6 +66,7 @@ SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context)
         m_snapToNorth = !m_snapToNorth;
     });
     m_UIContainer.addControl(m_compass);
+
 }
 
 SailingState::~SailingState()
@@ -98,15 +77,17 @@ bool SailingState::handleEvent(const sf::Event & evt)
 {
     switch (evt.type)
     {
+        //zoom view on mouse wheel scroll
     case sf::Event::MouseWheelScrolled:
     {
         auto view = m_scene.getView();
         view.zoom(1.f + evt.mouseWheelScroll.delta*0.1f);
-        m_seaShape->scale({ 1.f + evt.mouseWheelScroll.delta*0.1f,1.f + evt.mouseWheelScroll.delta*0.1f });
         m_scene.setView(view);
         break;
     }
     }
+
+    //update UI
     auto mousePos = sf::Mouse::getPosition(getContext().renderWindow);
     m_UIContainer.handleEvent(evt, sf::Vector2f(mousePos));
     return false;
@@ -121,31 +102,25 @@ bool SailingState::update(float dt)
 {
 	m_scene.update(dt);
 	auto view = m_scene.getView();
-    auto boatPos = m_boat->getWorldPosition();
+    auto boatPos = m_player->getWorldPosition();
 	view.setCenter(boatPos);
     if (m_snapToNorth)
     {
-        m_compass->setRotation(-m_boat->getRotation());
-        view.setRotation(m_boat->getRotation());
+        m_compass->setRotation(-m_player->getRotation());
+        view.setRotation(m_player->getRotation());
     }
     else
     {
         m_compass->setRotation(0);
-        m_seaShape->setRotation(0);
         view.setRotation(0);
     }
 	m_scene.setView(view);
 
+    //update co-ordinates
     m_xPosDisplay->setString(std::to_string(boatPos.x/100.f));
     m_yPosDisplay->setString(std::to_string(boatPos.y/100.f));
 
-	auto viewSize = m_scene.getView().getSize();
-    m_seaShape->setPosition(m_scene.getView().getCenter());
-    
-
-    auto texRect = m_seaShape->getGlobalBounds();
-    m_seaShape->setTextureRect(sf::IntRect(texRect));
-
+    //and the UI
     m_UIContainer.update(dt);
 	return false;
 }
@@ -154,7 +129,7 @@ void SailingState::draw()
 {
     auto& rt = getContext().renderWindow;
     rt.draw(m_scene);
-   // rt.draw(m_physicsWorld);
+    rt.draw(m_physicsWorld);
 
     rt.setView(rt.getDefaultView());
     rt.draw(m_UIContainer);

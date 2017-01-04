@@ -21,7 +21,7 @@ void Sailing::handleMessage(const xy::Message & message)
 
 void Sailing::registerStates()
 {
-	m_stateStack.registerState<SailingState>(States::Sailing);
+    m_stateStack.registerState<SailingState>(States::Sailing);
     m_stateStack.registerState<MainMenuState>(States::MainMenu);
 
 	//first state

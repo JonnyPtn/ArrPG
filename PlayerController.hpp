@@ -4,11 +4,11 @@
 #include <xygine/Resource.hpp>
 #include <xygine/Entity.hpp>
 
-class ShipComponent : public xy::Component
+class PlayerController : public xy::Component
 {
 public:
-	ShipComponent(xy::MessageBus& mb, xy::Entity& entity);
-	~ShipComponent();
+	PlayerController(xy::MessageBus& mb);
+	~PlayerController();
 	void onStart(xy::Entity& entity) override;
 	void entityUpdate(xy::Entity& entity, float dt) override;
 
@@ -20,5 +20,6 @@ private:
 	xy::Entity*	m_sailE;
 	xy::Entity*	m_hullE;
 	xy::TextureResource		m_textures;
+    xy::Entity* m_closestIsland;
 };
 

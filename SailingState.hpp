@@ -8,11 +8,12 @@
 #include <xygine/ui/Container.hpp>
 #include <xygine/ui/Label.hpp>
 #include <xygine/ui/Button.hpp>
+#include "WorldController.hpp"
 
 class SailingState : public xy::State
 {
 public:
-	SailingState(xy::StateStack& stack , xy::State::Context& context);
+	SailingState(xy::StateStack& stack , xy::State::Context& context); // specified seed
 	~SailingState();
 
 	bool handleEvent(const sf::Event& evt) override;
@@ -25,7 +26,8 @@ private:
 	xy::MessageBus&			m_messageBus;
 	xy::Physics::World		m_physicsWorld;
 	xy::Scene				m_scene;
-	xy::Entity*				m_boat;
+	xy::Entity*				m_player;
+    xy::Entity*             m_world;
 	sf::RectangleShape*		m_seaShape;
 	xy::TextureResource		m_textures;
 

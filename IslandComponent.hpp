@@ -25,7 +25,13 @@ public:
 	sf::FloatRect localBounds() const override;
 	sf::FloatRect globalBounds() const override;
 
-    bool isLand(Cell* cell);
+    ///checks if a voronoi cell is land or not
+    ///would prefer param to be const, but voronoi library needs changing
+    bool isLand(const Cell& cell);
+
+    ///checks if a world position is within this island
+    bool isLand(const sf::Vector2f& position);
+
 
 private:
 
@@ -38,6 +44,7 @@ private:
     std::vector<sf::Vertex>     m_voronoiLines;
     std::vector<sf::Vertex>     m_triLines;
     BoundingBox                 m_bounds;
+    xy::Entity*                 m_entity;
 
     VoronoiDiagramGenerator vGen;
     Diagram*                m_currentDiagram;

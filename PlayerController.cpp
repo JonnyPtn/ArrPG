@@ -5,6 +5,7 @@
 #include <xygine/physics/RigidBody.hpp>
 #include <xygine/physics/CollisionEdgeShape.hpp>
 #include <xygine/physics/CollisionRectangleShape.hpp>
+#include <xygine/physics/CollisionCircleShape.hpp>
 #include <xygine/physics/World.hpp>
 #include <xygine/util/Vector.hpp>
 #include <SFML/Window/Keyboard.hpp>
@@ -16,38 +17,47 @@
 #include "Messages.hpp"
 #include "WorldController.hpp"
 #include <xygine/util/Random.hpp>
+#include <xygine/components/AnimatedDrawable.hpp>
+#include "BoatComponent.hpp"
+#include "PirateComponent.hpp"
 
-PlayerController::PlayerController(xy::MessageBus& mb) :
-	xy::Component(mb, this)
+PlayerController::PlayerController(xy::MessageBus& mb, WorldController& world) :
+    xy::Component(mb, this),
+    m_world(&world)
 {
 }
 
 void PlayerController::onStart(xy::Entity& entity)
-{
-    //get the position in the world
-    
-    //check if we're on land or sea and load appropriate component
-
-
-    //hull
-    auto hull = xy::Component::create < xy::SfDrawableComponent<sf::RectangleShape>>(getMessageBus());
-    hull->getDrawable().setFillColor({ 244,164,96 }); //brown ship
-    hull->getDrawable().setSize({ 40.f, 100.f }); //of reasonable size
-    auto& tex = m_textures.get("Ship.png");
-    hull->getDrawable().setTexture(&tex);
-    hull->getDrawable().setTextureRect({ 0,0,int(tex.getSize().x),int(tex.getSize().y) });
-    hull->getDrawable().setOrigin(20.f, 50.f);
-    entity.addComponent(hull);
-
-    //collision hull
+{    
+    //we need a rigid body
     auto body = xy::Component::create<xy::Physics::RigidBody>(getMessageBus(), xy::Physics::BodyType::Dynamic);
-    body->setLinearDamping(0.5f);
-    body->setAngularDamping(10.f);
-    xy::Physics::CollisionRectangleShape hullShape({ -20,-50,40,100 });
-    hullShape.setDensity(1.0);
-    hullShape.setRestitution(1.0);
-    body->addCollisionShape(hullShape);
-    m_body = entity.addComponent(body);
+    m_body = body.get();
+    m_body->setLinearDamping(0.5f);
+    m_body->setAngularDamping(10.f);
+
+    //and a fixture for it because of some bullcrap with dynamic fixture management
+    auto fixture = xy::Physics::CollisionCircleShape(20);
+    fixture.setDensity(1.0);
+    m_body->addCollisionShape(fixture);
+
+    //check if we're on land or sea and load appropriate component
+    if (onLand = m_world->isLand(entity.getPosition()))
+    {
+        auto pirate = xy::Component::create<PirateComponent>(getMessageBus(), entity, m_body, m_playerTextures);
+        entity.addComponent(pirate);
+    }
+    else
+    {
+        auto boat = xy::Component::create<BoatComponent>(getMessageBus(), entity, m_body,m_playerTextures);
+        entity.addComponent(boat);
+    }
+
+    //recenter the bounds
+    //auto bounds = entity.globalBounds();
+    //entity.setOrigin(bounds.width / 2, bounds.height / 2);
+
+    //add the body
+    entity.addComponent(body);
 
     auto msg = getMessageBus().post<NewIslandData>(Messages::CreateIsland);
     msg->playerPosition = entity.getPosition();
@@ -70,50 +80,34 @@ PlayerController::~PlayerController()
 
 void PlayerController::entityUpdate(xy::Entity & entity, float dt)
 {
-    //get nearby islands
-    auto pos = entity.getPosition();
-    auto qtc = entity.getScene()->queryQuadTree({ pos.x - IslandDensity, pos.y - IslandDensity, IslandDensity * 2,IslandDensity * 2 });
-    
-    //find the nearest one
-    float closestIsland(std::numeric_limits<float>::max());
-    for (auto c : qtc)
+    //if we're on land, go red
+    if (m_world)
     {
-        auto e = c->getEntity();
-        auto d = xy::Util::Vector::lengthSquared(pos - e->getPosition());
-        if (d < closestIsland)
+        if (m_world->isLand(entity.getWorldPosition()))
         {
-            closestIsland = d;
-            m_closestIsland = e;
+            //if we're a boat, we should be a pirate
+            if (!onLand)
+            {
+                onLand = true;
+                auto boat = entity.getComponent<BoatComponent>();
+                boat->destroy();
+
+                auto pirate = xy::Component::create<PirateComponent>(getMessageBus(),entity,m_body, m_playerTextures);
+                entity.addComponent(pirate);
+            }
+        }
+        else
+        {
+            //if we've just taken to sea, we're a boat
+            if (onLand)
+            {
+                onLand = false;
+                auto pirate = entity.getComponent<PirateComponent>();
+                pirate->destroy();
+
+                auto boat = xy::Component::create<BoatComponent>(getMessageBus(), entity,m_body, m_playerTextures);
+                entity.addComponent(boat);
+            }
         }
     }
-
-    //if there isn't an island near enough, generate one
-    if (closestIsland > std::pow(IslandDensity,2))
-    {
-       /* auto msg = getMessageBus().post<NewIslandData>(Messages::CreateIsland);
-        msg->playerPosition = entity.getPosition();
-        msg->seed = xy::Util::Random::value(0, std::numeric_limits<int>::max());*/
-    }
-
-
-    //kill lateral velocity
-    auto currentRightNormal = m_body->getWorldVector({ 1,0 });
-    auto lateralVelocity = xy::Util::Vector::dot(currentRightNormal, m_body->getLinearVelocity()) * currentRightNormal;
-    auto impulse = m_body->getMass() * -lateralVelocity;
-    m_body->applyLinearImpulse(impulse, m_body->getWorldCentre());
-
-
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
-	{
-		m_body->applyForceToCentre(xy::Util::Vector::rotate({ 0,-100 }, entity.getRotation()));
-	}
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
-	{
-		m_body->applyTorque(20);
-	}
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
-	{
-		m_body->applyTorque(-20);
-	}
-
 }

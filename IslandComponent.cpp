@@ -21,6 +21,7 @@ IslandComponent::IslandComponent(xy::MessageBus& mb, int seed) :
     m_seed(seed),
     m_sites(500),
     m_currentDiagram(nullptr),
+    m_entity(nullptr),
 	xy::Component(mb,this)
 {
     m_bounds = { 0.0,xy::Util::Random::value(minSize, maxSize)
@@ -43,29 +44,55 @@ IslandComponent::~IslandComponent()
 
 void IslandComponent::onStart(xy::Entity & ent)
 {
-    getRandomSites(1024);
+    if(!m_entity)
+        m_entity = &ent;
+
+    getRandomSites(2048);
 
     m_noise = FastNoise();
     create(vGen.compute(m_sites,m_bounds));
 }
 
-bool    IslandComponent::isLand(Cell* cell)
+bool    IslandComponent::isLand(const Cell& cell)
 {
     Point2 centre;
     centre.x = localBounds().width / 2;
     centre.y = localBounds().height / 2;
 
     //get the distance between the centre and the cell
-    auto d = cell->site.p - centre;
+    auto d = cell.site.p - centre;
     auto dv = xy::Util::Vector::length(sf::Vector2f( d.x,d.y ));
 
     //make it a factor of the max distance
     auto df = 1 - (dv / (m_bounds.xR - m_bounds.xL));
 
     //if the noise value factored by the distance is over sea level, it's land
-    auto n = (m_noise.GetSimplexFractal(cell->site.p.x, cell->site.p.y)+1)/2;
+    auto n = (m_noise.GetSimplexFractal(cell.site.p.x, cell.site.p.y)+1)/2;
   
     return df* n > m_seaLevel;
+}
+
+bool IslandComponent::isLand(const sf::Vector2f& position)
+{
+    //convert to island local co-ordinates
+    auto localPos = m_entity->getTransform().getInverse().transformPoint(position);
+
+    for (auto& cell : m_currentDiagram->cells)
+    {
+        //first check the bounding box
+        auto b = cell->getBoundingBox();
+        sf::FloatRect bounds(b.xmin, b.ymin, b.width, b.height);
+        if (bounds.contains(localPos))
+        {
+            //then check the point detection
+            if (cell->pointIntersection(localPos.x, localPos.y) == 1)
+                if (isLand(*cell)) 
+                    return true;
+                else
+                    return false;
+       }
+    }
+    return false;
 }
 
 void IslandComponent::create(Diagram* diagram)
@@ -85,7 +112,7 @@ void IslandComponent::create(Diagram* diagram)
 
     for (auto& cell : m_currentDiagram->cells)
     {
-        if (isLand(cell))
+        if (isLand(*cell))
         {
             //draw the centre of the cell
             m_points.push_back({ sf::Vector2f(cell->site.p.x, cell->site.p.y), sf::Color::Red });
@@ -157,7 +184,7 @@ void IslandComponent::updateSeaLevel(float seaLevel)
     m_voronoiLines.clear();
      for (auto& cell : m_currentDiagram->cells)
     {
-        if (isLand(cell))
+        if (isLand(*cell))
         {
             //draw the centre of the cell
             m_points.push_back({ sf::Vector2f(cell->site.p.x, cell->site.p.y), sf::Color::Red });

@@ -16,6 +16,7 @@
 #include <xygine/util/Random.hpp>
 #include "IslandComponent.hpp"
 #include "Messages.hpp"
+#include <xygine/postprocess/OldSchool.hpp>
 
 SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context)
 	: xy::State(stack, context),
@@ -28,19 +29,19 @@ SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context)
 	//no gravity because top-down
 	m_physicsWorld.setGravity({ 0.f,0.f });
 
+    //add the world Entity
+    auto world = xy::Entity::create(m_messageBus);
+    auto worldController = xy::Component::create<WorldController>(m_messageBus, xy::Util::Random::value(0, 1));
+    auto wc = world->addComponent(worldController);
+    m_world = m_scene.addEntity(world, xy::Scene::Layer::BackRear);
+
     //add the player Entity
     auto player = xy::Entity::create(m_messageBus);
-    auto playerComponent = xy::Component::create<PlayerController>(m_messageBus);
+    auto playerComponent = xy::Component::create<PlayerController>(m_messageBus,*wc);
     auto bounds = player->globalBounds();
     player->setOrigin(bounds.width / 2, bounds.height / 2);
     player->addComponent(playerComponent);
-    m_player = m_scene.addEntity(player,xy::Scene::Layer::FrontFront);
-
-    //add the world Entity
-    auto world = xy::Entity::create(m_messageBus);
-    auto worldController = xy::Component::create<WorldController>(m_messageBus,xy::Util::Random::value(0,1));
-    world->addComponent(worldController);
-    m_world =  m_scene.addEntity(world, xy::Scene::Layer::BackRear);
+    m_player = m_scene.addEntity(player, xy::Scene::Layer::FrontFront);
 
     //set the sea colour (no worky without post process :( )
     m_scene.setClearColour(sf::Color::Blue);
@@ -102,7 +103,7 @@ bool SailingState::update(float dt)
 {
 	m_scene.update(dt);
 	auto view = m_scene.getView();
-    auto boatPos = m_player->getWorldPosition();
+    auto boatPos = m_player->getWorldPosition(); 
 	view.setCenter(boatPos);
     if (m_snapToNorth)
     {
@@ -129,7 +130,7 @@ void SailingState::draw()
 {
     auto& rt = getContext().renderWindow;
     rt.draw(m_scene);
-    rt.draw(m_physicsWorld);
+    //rt.draw(m_physicsWorld);
 
     rt.setView(rt.getDefaultView());
     rt.draw(m_UIContainer);

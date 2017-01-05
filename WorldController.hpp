@@ -4,7 +4,7 @@
 #include <xygine/MessageBus.hpp>
 #include "Messages.hpp"
 
-constexpr float IslandDensity = 20000; //the minimum distance (ish) the player will ever be from an Island
+constexpr float IslandDensity = 10000; //the minimum distance (ish) the player will ever be from an Island
 
 class WorldController : public xy::Component
 {
@@ -15,6 +15,9 @@ public:
     Component::Type type() const { return Component::Type::Script; }
     void entityUpdate(xy::Entity& entity, float dt) {}
     void onStart(xy::Entity& ent) override;
+
+    ///check if a world position is on land or not
+    bool isLand(const sf::Vector2f position);
 
 private:
     void createIsland(NewIslandData islandData);

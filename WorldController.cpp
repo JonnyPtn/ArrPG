@@ -14,7 +14,7 @@ WorldController::WorldController(xy::MessageBus& mb, int seed) :
     m_worldSeed(seed)
 {
     xy::Component::MessageHandler handler;
-    handler.id = Messages::CreateIsland;
+    handler.id = Messages::CreateIsland; 
     handler.action = [this](xy::Component* c, const xy::Message& msg)
     {
         auto& data = msg.getData<NewIslandData>();
@@ -41,6 +41,21 @@ WorldController::~WorldController()
 void WorldController::onStart(xy::Entity & ent)
 {
     m_entity = &ent;
+}
+
+bool WorldController::isLand(const sf::Vector2f position)
+{
+    //first find if it's on an island or not
+    for (auto island : m_islands)
+    {
+        if (island->globalBounds().contains(position))
+        {
+            //it's on this island, check the island
+            auto component = island->getComponent<IslandComponent>();
+            return component->isLand(position);
+        }
+    }
+    return false;
 }
 
 void WorldController::createIsland(NewIslandData d)

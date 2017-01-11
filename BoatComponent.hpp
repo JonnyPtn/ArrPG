@@ -23,6 +23,7 @@ private:
     sf::RectangleShape                           m_drawable;
     xy::Physics::CollisionRectangleShape*        m_colShape;
     xy::Physics::RigidBody*                      m_body;
+    bool                                         m_active;
 
     // Inherited via Drawable
     virtual void draw(sf::RenderTarget & target, sf::RenderStates states) const override;

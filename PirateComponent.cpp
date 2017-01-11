@@ -5,12 +5,32 @@
 #include <xygine/Entity.hpp>
 #include <xygine/util/Vector.hpp>
 #include <SFML/Window/Keyboard.hpp>
+#include "Messages.hpp"
 
 PirateComponent::PirateComponent(xy::MessageBus& mb, xy::Entity& entity, xy::Physics::RigidBody* body, xy::TextureResource& textures) :
     xy::Component(mb, this),
     m_textures(textures),
-    m_body(body)
+    m_body(body),
+    m_active(false)
 {
+    //activate when landing
+    xy::Component::MessageHandler handler;
+    handler.id = Messages::ON_LAND_CHANGE;
+    handler.action = [&](xy::Component* c, const xy::Message& msg)
+    {
+        if (m_active = msg.getData<bool>())
+        {
+            //just landed, kill momentum
+            auto v = m_body->getLinearVelocity();
+            auto impulse = v * m_body->getMass()*0.8f;
+            m_body->applyLinearImpulse(-impulse, m_body->getWorldCentre());
+
+            //force vertical
+            m_body->setTransform(entity.getPosition(),0);
+            m_body->setAngularVelocity(0.f);
+        }
+    };
+    addMessageHandler(handler);
 }
 
 
@@ -23,24 +43,27 @@ xy::Component::Type PirateComponent::type() const
     return xy::Component::Type::Script;
 }
 
-void PirateComponent::entityUpdate(xy::Entity &, float)
+void PirateComponent::entityUpdate(xy::Entity & ent, float)
 {
-    const float force(50.f);
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
+    if (m_active)
     {
-        m_body->applyForceToCentre({ 0,-force });
-    }
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
-    {
-        m_body->applyForceToCentre({-force, 0 });
-    }
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
-    {
-        m_body->applyForceToCentre({ 0,force });
-    }
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
-    {
-        m_body->applyForceToCentre({ force,0 });
+        const float force(50.f);
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
+        {
+            m_body->applyForceToCentre({ 0,-force });
+        }
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
+        {
+            m_body->applyForceToCentre({ -force, 0 });
+        }
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
+        {
+            m_body->applyForceToCentre({ 0,force });
+        }
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
+        {
+            m_body->applyForceToCentre({ force,0 });
+        }
     }
 }
 
@@ -63,13 +86,6 @@ void PirateComponent::onStart(xy::Entity & entity)
     pirateShape.setRestitution(1.0);
     m_colShape = m_body->addCollisionShape(pirateShape);*/
 
-    //kill any momentum
-    auto v = m_body->getLinearVelocity();
-    auto impulse = v * m_body->getMass();
-    m_body->applyLinearImpulse(-impulse, m_body->getWorldCentre());
-    
-    //force vertical
-    m_body->setRotation(0);
 }
 
 void PirateComponent::destroy()

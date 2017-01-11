@@ -23,5 +23,6 @@ private:
     xy::Physics::RigidBody*                      m_body;
     xy::AnimatedDrawable*                        m_drawable;
     xy::Physics::CollisionRectangleShape*        m_colShape;
+    bool                                         m_active;
 };
 

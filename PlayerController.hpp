@@ -4,6 +4,7 @@
 #include <xygine/Resource.hpp>
 #include <xygine/Entity.hpp>
 #include "WorldController.hpp"
+#include "IslandComponent.hpp"
 
 class PlayerController : public xy::Component
 {
@@ -20,6 +21,7 @@ private:
     WorldController*        m_world;
     xy::TextureResource     m_playerTextures;
     xy::Physics::RigidBody* m_body;
-    bool onLand;
+    bool                    m_onLand;
+    CellType                m_currentCell;
 };
 

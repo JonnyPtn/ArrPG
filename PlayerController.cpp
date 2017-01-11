@@ -41,37 +41,27 @@ void PlayerController::onStart(xy::Entity& entity)
     m_body->addCollisionShape(fixture);
 
     //check if we're on land or sea and load appropriate component
-    if (onLand = m_world->isLand(entity.getPosition()))
-    {
-        auto pirate = xy::Component::create<PirateComponent>(getMessageBus(), entity, m_body, m_playerTextures);
-        entity.addComponent(pirate);
-    }
-    else
-    {
-        auto boat = xy::Component::create<BoatComponent>(getMessageBus(), entity, m_body,m_playerTextures);
-        entity.addComponent(boat);
-    }
-
-    //recenter the bounds
-    //auto bounds = entity.globalBounds();
-    //entity.setOrigin(bounds.width / 2, bounds.height / 2);
+    auto onLand = getMessageBus().post<bool>(Messages::ON_LAND_CHANGE);
+    *onLand = m_world->isLand(entity.getWorldPosition());
 
     //add the body
     entity.addComponent(body);
 
-    auto msg = getMessageBus().post<NewIslandData>(Messages::CreateIsland);
+    auto msg = getMessageBus().post<NewIslandData>(Messages::CREATE_ISLAND);
     msg->playerPosition = entity.getPosition();
     msg->seed = xy::Util::Random::value(0, std::numeric_limits<int>::max());
 
     xy::App::addUserWindow([&]()
     {
-        if(ImGui::Button("Spawn Island"))
-        {
-            auto msg = getMessageBus().post<NewIslandData>(Messages::CreateIsland);
-            msg->playerPosition = entity.getPosition();
-            msg->seed = xy::Util::Random::value(0, std::numeric_limits<int>::max());
-        }
+        //show the
     });
+
+    //add the pirate and boat components - they'll sort their stuff out
+    auto pirate = xy::Component::create<PirateComponent>(getMessageBus(), entity, m_body, m_playerTextures);
+    entity.addComponent(pirate);
+    auto boat = xy::Component::create<BoatComponent>(getMessageBus(), entity, m_body, m_playerTextures);
+    entity.addComponent(boat);
+
 }
 
 PlayerController::~PlayerController()
@@ -80,34 +70,34 @@ PlayerController::~PlayerController()
 
 void PlayerController::entityUpdate(xy::Entity & entity, float dt)
 {
-    //if we're on land, go red
+    //get nearest Island
+    auto pos = entity.getPosition();
+    auto qtc = entity.getScene()->queryQuadTree({ pos.x - IslandDensity, pos.y - IslandDensity, IslandDensity * 2,IslandDensity * 2 });
+
+    //find the nearest one
+    float closestIsland(std::numeric_limits<float>::max());
+    for (auto c : qtc)
+    {
+        auto e = c->getEntity();
+        auto d = xy::Util::Vector::lengthSquared(pos - e->getPosition());
+        if (d < closestIsland)
+        {
+            closestIsland = d;
+            m_closestIsland = e;
+        }
+    }
+
     if (m_world)
     {
-        if (m_world->isLand(entity.getWorldPosition()))
+        bool onLand = m_world->isLand(entity.getWorldPosition());
+        if (onLand != m_onLand)
         {
-            //if we're a boat, we should be a pirate
-            if (!onLand)
-            {
-                onLand = true;
-                auto boat = entity.getComponent<BoatComponent>();
-                boat->destroy();
-
-                auto pirate = xy::Component::create<PirateComponent>(getMessageBus(),entity,m_body, m_playerTextures);
-                entity.addComponent(pirate);
-            }
+            m_onLand = onLand;
+            auto onLandMsg = getMessageBus().post<bool>(Messages::ON_LAND_CHANGE);
+            *onLandMsg = m_onLand;
         }
-        else
-        {
-            //if we've just taken to sea, we're a boat
-            if (onLand)
-            {
-                onLand = false;
-                auto pirate = entity.getComponent<PirateComponent>();
-                pirate->destroy();
 
-                auto boat = xy::Component::create<BoatComponent>(getMessageBus(), entity,m_body, m_playerTextures);
-                entity.addComponent(boat);
-            }
-        }
+        //get the current cell
+
     }
 }

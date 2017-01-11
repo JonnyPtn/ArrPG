@@ -43,9 +43,6 @@ SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context)
     player->addComponent(playerComponent);
     m_player = m_scene.addEntity(player, xy::Scene::Layer::FrontFront);
 
-    //set the sea colour (no worky without post process :( )
-    m_scene.setClearColour(sf::Color::Blue);
-
     //UI
 
     //co-ordinates
@@ -130,7 +127,7 @@ void SailingState::draw()
 {
     auto& rt = getContext().renderWindow;
     rt.draw(m_scene);
-    //rt.draw(m_physicsWorld);
+    rt.draw(m_physicsWorld);
 
     rt.setView(rt.getDefaultView());
     rt.draw(m_UIContainer);

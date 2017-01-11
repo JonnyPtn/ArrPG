@@ -14,7 +14,7 @@ WorldController::WorldController(xy::MessageBus& mb, int seed) :
     m_worldSeed(seed)
 {
     xy::Component::MessageHandler handler;
-    handler.id = Messages::CreateIsland; 
+    handler.id = Messages::CREATE_ISLAND; 
     handler.action = [this](xy::Component* c, const xy::Message& msg)
     {
         auto& data = msg.getData<NewIslandData>();
@@ -27,7 +27,7 @@ WorldController::WorldController(xy::MessageBus& mb, int seed) :
     {
         if (ImGui::SliderFloat("Sea Level", &m_seaLevel, 0.f, 1.f))
         {
-            auto msg = getMessageBus().post<float>(Messages::SeaLevelChanged);
+            auto msg = getMessageBus().post<float>(Messages::SEA_LEVEL_CHANGED);
             *msg = m_seaLevel;
         }
     });

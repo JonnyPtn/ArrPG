@@ -4,8 +4,11 @@
 
 enum Messages
 {
-    CreateIsland = xy::Message::Count,
-    SeaLevelChanged,
+    CREATE_ISLAND = xy::Message::Count,
+    SEA_LEVEL_CHANGED,
+
+    //player stuff
+    ON_LAND_CHANGE
 };
 
 struct NewIslandData

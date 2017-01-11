@@ -7,6 +7,7 @@ Sailing::Sailing() :
 	m_stateStack({ getRenderWindow(),*this })
 {
 	registerStates();
+    xy::App::setClearColour({ 0,41,58 });
 }
 
 void Sailing::handleEvent(const sf::Event &evt)

@@ -1,7 +1,6 @@
 #include "PlayerController.hpp"
 #include <xygine/Entity.hpp>
 #include <xygine/components/SfDrawableComponent.hpp>
-#include "WindController.hpp"
 #include <xygine/physics/RigidBody.hpp>
 #include <xygine/physics/CollisionEdgeShape.hpp>
 #include <xygine/physics/CollisionRectangleShape.hpp>
@@ -20,47 +19,106 @@
 #include <xygine/components/AnimatedDrawable.hpp>
 #include "BoatComponent.hpp"
 #include "PirateComponent.hpp"
+#include <xygine/imgui/imgui_sfml.h>
+
+constexpr float viewDistance(15000.f);
 
 PlayerController::PlayerController(xy::MessageBus& mb, WorldController& world) :
     xy::Component(mb, this),
-    m_world(&world)
+    m_world(&world),
+    m_closestIsland(nullptr)
 {
 }
 
 void PlayerController::onStart(xy::Entity& entity)
-{    
-    //we need a rigid body
-    auto body = xy::Component::create<xy::Physics::RigidBody>(getMessageBus(), xy::Physics::BodyType::Dynamic);
-    m_body = body.get();
-    m_body->setLinearDamping(0.5f);
-    m_body->setAngularDamping(10.f);
-
-    //and a fixture for it because of some bullcrap with dynamic fixture management
-    auto fixture = xy::Physics::CollisionCircleShape(20);
-    fixture.setDensity(1.0);
-    m_body->addCollisionShape(fixture);
-
+{
     //check if we're on land or sea and load appropriate component
-    auto onLand = getMessageBus().post<bool>(Messages::ON_LAND_CHANGE);
-    *onLand = m_world->isLand(entity.getWorldPosition());
+   /* auto onLand = getMessageBus().post<bool>(Messages::BOAT_CHANGE);
+    *onLand = m_world->isLand(entity.getWorldPosition());*/
 
-    //add the body
-    entity.addComponent(body);
+    //add the pirate com
+    auto pirate = xy::Component::create<PirateComponent>(getMessageBus(), entity, m_playerTextures);
+    entity.addComponent(pirate);
 
-    auto msg = getMessageBus().post<NewIslandData>(Messages::CREATE_ISLAND);
-    msg->playerPosition = entity.getPosition();
-    msg->seed = xy::Util::Random::value(0, std::numeric_limits<int>::max());
+    //DEBUG STUFF
+    auto debugLine = xy::Component::create<xy::SfDrawableComponent<sf::VertexArray>>(getMessageBus());
+    debugLine->getDrawable().setPrimitiveType(sf::Lines);
 
+    //2 verts for nearest island
+    debugLine->getDrawable().append({ { 0.f,0.f },sf::Color::Yellow });
+    debugLine->getDrawable().append({ { 0.f,0.f },sf::Color::Yellow });
+
+    m_debugLines = entity.addComponent(debugLine);
+
+    //heightMap
+    m_heightMapTexture.create(std::sqrt(m_nearestIslandHeightMap.size() / 4), std::sqrt(m_nearestIslandHeightMap.size() / 4));
+    m_heightMapSprite.setTexture(m_heightMapTexture);
+
+    //debug window
     xy::App::addUserWindow([&]()
     {
-        //show the
-    });
+        if (m_closestIsland)
+        {
+            //get the island component
+            auto island = m_closestIsland->getComponent<IslandComponent>();
 
-    //add the pirate and boat components - they'll sort their stuff out
-    auto pirate = xy::Component::create<PirateComponent>(getMessageBus(), entity, m_body, m_playerTextures);
-    entity.addComponent(pirate);
-    auto boat = xy::Component::create<BoatComponent>(getMessageBus(), entity, m_body, m_playerTextures);
-    entity.addComponent(boat);
+            auto cc = island->getCellType(entity.getPosition());
+            ImGui::Text("Current Biome: "); ImGui::SameLine();
+            switch (cc)
+            {
+            case CellType::COAST:
+                ImGui::Text("Coast");
+                break;
+            case CellType::HIGH_ALTITUDE:
+                ImGui::Text("High Altitude");
+                break;
+            case CellType::LAND:
+                ImGui::Text("Inland");
+                break;
+            case CellType::OCEAN:
+                ImGui::Text("Ocean");
+                break;
+            }
+
+            //update the noise image
+          /*  int iX = island->globalBounds().width;
+            int iY = island->globalBounds().height;
+
+            auto stride = std::sqrt(m_nearestIslandHeightMap.size()/4);
+            for (int y = 0; y < stride;y++)
+            {
+                for (int x = 0; x < stride; x++)
+                {
+                    //get position relative to island
+                    float relX = x / stride * iX;
+                    float relY = y / stride * iY;
+
+                    //get the height of the island at this place
+                    auto h = island->getHeight({ relX, relY });
+
+                    //update the pixel accordingly
+                    m_nearestIslandHeightMap[(x + y*stride) * 4] = h * 255;
+                    m_nearestIslandHeightMap[(x + y*stride) * 4+1] = h * 255;
+                    m_nearestIslandHeightMap[(x + y*stride) * 4+2] = h * 255;
+                    m_nearestIslandHeightMap[(x + y*stride) * 4+3] = 255; //just 100% alpha
+                }
+            }
+
+            //update texture
+            m_heightMapTexture.update(m_nearestIslandHeightMap.data());
+            ImGui::Image(m_heightMapSprite);*/
+        }
+        else
+            ImGui::Text("Current Biome: Ocean");
+
+        //quick debug button to spawn island on player
+        if (ImGui::Button("Spawn Island"))
+        {
+            auto msg = getMessageBus().post<std::pair<sf::Vector2f,int>>(Messages::CREATE_ISLAND);
+            msg->first = entity.getPosition();
+            msg->second = xy::Util::Random::value(0, std::numeric_limits<int>::max());
+        }
+    });
 
 }
 
@@ -70,12 +128,40 @@ PlayerController::~PlayerController()
 
 void PlayerController::entityUpdate(xy::Entity & entity, float dt)
 {
-    //get nearest Island
+    //get nearest visible Island
     auto pos = entity.getPosition();
-    auto qtc = entity.getScene()->queryQuadTree({ pos.x - IslandDensity, pos.y - IslandDensity, IslandDensity * 2,IslandDensity * 2 });
+    auto qtc = entity.getScene()->queryQuadTree({ pos.x - viewDistance, pos.y - viewDistance, viewDistance * 2,viewDistance * 2 });
+
+    //take out all the islands still in range
+    for (auto i : qtc)
+    {
+        auto it = std::find(m_islandsInRange.begin(), m_islandsInRange.end(), i->getEntity());
+        if (it != m_islandsInRange.end())
+        {
+            m_islandsInRange.erase(it);
+        }
+    }
+
+    //we've removed all the ones still in range, any remaining have gone out of range, put them to sleep
+    for (auto i : m_islandsInRange)
+    {
+        auto island = i->getComponent<IslandComponent>();
+        island->setSleep(true);
+    }
 
     //find the nearest one
     float closestIsland(std::numeric_limits<float>::max());
+    if (qtc.empty())
+    {
+        m_closestIsland = nullptr;
+        m_debugLines->getDrawable()[0].color = sf::Color::Transparent;
+        m_debugLines->getDrawable()[1].color = sf::Color::Transparent;
+    }
+    else
+    {
+        m_debugLines->getDrawable()[0].color = sf::Color::Yellow;
+        m_debugLines->getDrawable()[1].color = sf::Color::Yellow;
+    }
     for (auto c : qtc)
     {
         auto e = c->getEntity();
@@ -85,19 +171,22 @@ void PlayerController::entityUpdate(xy::Entity & entity, float dt)
             closestIsland = d;
             m_closestIsland = e;
         }
+        //make sure this island is awake
+        auto i = e->getComponent<IslandComponent>();
+        i->setSleep(false);
+        m_islandsInRange.push_back(e);
     }
+
+    //update the verts for the nearest island
+    if (m_closestIsland)
+        m_debugLines->getDrawable()[0].position = entity.getWorldTransform().getInverse().transformPoint(m_closestIsland->getPosition());
 
     if (m_world)
     {
-        bool onLand = m_world->isLand(entity.getWorldPosition());
+     /*   bool onLand = m_world->isLand(entity.getWorldPosition());
         if (onLand != m_onLand)
         {
             m_onLand = onLand;
-            auto onLandMsg = getMessageBus().post<bool>(Messages::ON_LAND_CHANGE);
-            *onLandMsg = m_onLand;
-        }
-
-        //get the current cell
-
+        }*/
     }
 }

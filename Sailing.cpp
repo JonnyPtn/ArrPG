@@ -7,7 +7,6 @@ Sailing::Sailing() :
 	m_stateStack({ getRenderWindow(),*this })
 {
 	registerStates();
-    xy::App::setClearColour({ 0,41,58 });
 }
 
 void Sailing::handleEvent(const sf::Event &evt)
@@ -22,11 +21,12 @@ void Sailing::handleMessage(const xy::Message & message)
 
 void Sailing::registerStates()
 {
-    m_stateStack.registerState<SailingState>(States::Sailing);
+    m_stateStack.registerState<SailingState>(States::NewGame,"");
+    m_stateStack.registerState<SailingState>(States::LoadGame, "world.boop");
     m_stateStack.registerState<MainMenuState>(States::MainMenu);
 
 	//first state
-	m_stateStack.pushState(States::Sailing);
+	m_stateStack.pushState(States::MainMenu);
 }
 
 void Sailing::updateApp(float dt)

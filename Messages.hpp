@@ -8,11 +8,6 @@ enum Messages
     SEA_LEVEL_CHANGED,
 
     //player stuff
-    ON_LAND_CHANGE
-};
-
-struct NewIslandData
-{
-    int seed;
-    sf::Vector2f playerPosition;
+    BOAT_CHANGE
+    
 };

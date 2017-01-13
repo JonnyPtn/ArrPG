@@ -7,7 +7,7 @@ class PirateComponent :
     public xy::Component
 {
 public:
-    PirateComponent(xy::MessageBus& mb, xy::Entity& ent,xy::Physics::RigidBody* body, xy::TextureResource& tex);
+    PirateComponent(xy::MessageBus& mb, xy::Entity& ent,xy::TextureResource& tex);
     ~PirateComponent();
 
     // Inherited via Component
@@ -20,9 +20,8 @@ public:
 
 private:
     xy::TextureResource&		                 m_textures;
-    xy::Physics::RigidBody*                      m_body;
     xy::AnimatedDrawable*                        m_drawable;
     xy::Physics::CollisionRectangleShape*        m_colShape;
-    bool                                         m_active;
+    bool                                         m_onBoat;
 };
 

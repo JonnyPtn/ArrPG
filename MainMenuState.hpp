@@ -3,6 +3,8 @@
 #include <xygine/State.hpp>
 #include <xygine/ui/Container.hpp>
 #include <xygine/Resource.hpp>
+#include <SFML/Graphics/Text.hpp>
+#include <SFML/Graphics/Sprite.hpp>
 #include "States.hpp"
 
 class MainMenuState : public xy::State
@@ -18,8 +20,10 @@ public:
     xy::StateID stateID() const override;
 
 private:
-    xy::UI::Container   m_UIContainer;
-    xy::FontResource    m_UIFonts;
-    xy::TextureResource m_textures;
+    sf::Texture         m_logoTexture;
+    sf::Sprite          m_logoSprite;
+    sf::Font            m_menuFont;
+    sf::Text            m_newGameText;
+    sf::Text            m_loadGameText;
 };
 

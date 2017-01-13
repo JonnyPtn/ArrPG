@@ -6,7 +6,6 @@
 #include <SFML/Graphics/RenderWindow.hpp>
 #include <xygine/App.hpp>
 #include "PlayerController.hpp"
-#include "WindController.hpp"
 #include <xygine/physics/RigidBody.hpp>
 #include <xygine/physics/CollisionRectangleShape.hpp>
 #include <xygine/physics/JointFriction.hpp>
@@ -17,21 +16,25 @@
 #include "IslandComponent.hpp"
 #include "Messages.hpp"
 #include <xygine/postprocess/OldSchool.hpp>
+#include <xygine/components/Camera.hpp>
 
-SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context)
-	: xy::State(stack, context),
-	m_messageBus(context.appInstance.getMessageBus()),
-	m_scene(m_messageBus),
-	m_physicsWorld(m_messageBus),
+SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context, const std::string& worldFile)
+    : xy::State(stack, context),
+    m_messageBus(context.appInstance.getMessageBus()),
+    m_scene(m_messageBus),
+    m_physicsWorld(m_messageBus),
     m_UIContainer(m_messageBus),
-    m_snapToNorth(false)
+    m_snapToNorth(false),
+    m_saveFilePath(worldFile)
 {
+    xy::App::setClearColour({ 0,41,58 });
+  
 	//no gravity because top-down
 	m_physicsWorld.setGravity({ 0.f,0.f });
 
     //add the world Entity
     auto world = xy::Entity::create(m_messageBus);
-    auto worldController = xy::Component::create<WorldController>(m_messageBus, xy::Util::Random::value(0, 1));
+    auto worldController = xy::Component::create<WorldController>(m_messageBus, m_saveFilePath);
     auto wc = world->addComponent(worldController);
     m_world = m_scene.addEntity(world, xy::Scene::Layer::BackRear);
 
@@ -41,6 +44,11 @@ SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context)
     auto bounds = player->globalBounds();
     player->setOrigin(bounds.width / 2, bounds.height / 2);
     player->addComponent(playerComponent);
+
+    auto cam = xy::Component::create<xy::Camera>(m_messageBus, m_scene.getView());
+    cam->setZoom(3.f);
+    m_playerCam = player->addComponent(cam);
+
     m_player = m_scene.addEntity(player, xy::Scene::Layer::FrontFront);
 
     //UI
@@ -80,7 +88,7 @@ bool SailingState::handleEvent(const sf::Event & evt)
     {
         auto view = m_scene.getView();
         view.zoom(1.f + evt.mouseWheelScroll.delta*0.1f);
-        m_scene.setView(view);
+       // m_scene.setView(view);
         break;
     }
     }
@@ -98,10 +106,10 @@ void SailingState::handleMessage(const xy::Message &message)
 
 bool SailingState::update(float dt)
 {
-	m_scene.update(dt);
+    m_scene.update(dt);
 	auto view = m_scene.getView();
     auto boatPos = m_player->getWorldPosition(); 
-	view.setCenter(boatPos);
+	/*view.setCenter(boatPos);
     if (m_snapToNorth)
     {
         m_compass->setRotation(-m_player->getRotation());
@@ -112,7 +120,7 @@ bool SailingState::update(float dt)
         m_compass->setRotation(0);
         view.setRotation(0);
     }
-	m_scene.setView(view);
+	m_scene.setView(view);*/
 
     //update co-ordinates
     m_xPosDisplay->setString(std::to_string(boatPos.x/100.f));
@@ -126,13 +134,15 @@ bool SailingState::update(float dt)
 void SailingState::draw()
 {
     auto& rt = getContext().renderWindow;
+
+    m_scene.setActiveCamera(m_playerCam);
     rt.draw(m_scene);
-    rt.draw(m_physicsWorld);
+   // rt.draw(m_physicsWorld);
 
     rt.setView(rt.getDefaultView());
     rt.draw(m_UIContainer);
 }
 xy::StateID SailingState::stateID() const
 {
-	return States::Sailing;
+	return m_saveFilePath.length() ? States::LoadGame : States::NewGame;
 }

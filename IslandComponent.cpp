@@ -13,22 +13,121 @@
 #include "FastNoise.h"
 #include "Messages.hpp"
 #include <stack>
-constexpr float maxSize(8000.f);
-constexpr float minSize(4000.f);
+#include <xygine/components/SpriteBatch.hpp>
 
-float IslandComponent::m_seaLevel(0.5f);
 
-IslandComponent::IslandComponent(xy::MessageBus& mb, int seed) :
+namespace
+{
+    const std::string noiseShader =
+        R"(
+
+///
+
+//
+// Description : Array and textureless GLSL 2D simplex noise function.
+//      Author : Ian McEwan, Ashima Arts.
+//  Maintainer : stegu
+//     Lastmod : 20110822 (ijm)
+//     License : Copyright (C) 2011 Ashima Arts. All rights reserved.
+//               Distributed under the MIT License. See LICENSE file.
+//               https://github.com/ashima/webgl-noise
+//               https://github.com/stegu/webgl-noise
+// 
+
+vec3 mod289(vec3 x) {
+  return x - floor(x * (1.0 / 289.0)) * 289.0;
+}
+
+vec2 mod289(vec2 x) {
+  return x - floor(x * (1.0 / 289.0)) * 289.0;
+}
+
+vec3 permute(vec3 x) {
+  return mod289(((x*34.0)+1.0)*x);
+}
+
+float snoise(vec2 v)
+  {
+  const vec4 C = vec4(0.211324865405187,  // (3.0-sqrt(3.0))/6.0
+                      0.366025403784439,  // 0.5*(sqrt(3.0)-1.0)
+                     -0.577350269189626,  // -1.0 + 2.0 * C.x
+                      0.024390243902439); // 1.0 / 41.0
+// First corner
+  vec2 i  = floor(v + dot(v, C.yy) );
+  vec2 x0 = v -   i + dot(i, C.xx);
+
+// Other corners
+  vec2 i1;
+  //i1.x = step( x0.y, x0.x ); // x0.x > x0.y ? 1.0 : 0.0
+  //i1.y = 1.0 - i1.x;
+  i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+  // x0 = x0 - 0.0 + 0.0 * C.xx ;
+  // x1 = x0 - i1 + 1.0 * C.xx ;
+  // x2 = x0 - 1.0 + 2.0 * C.xx ;
+  vec4 x12 = x0.xyxy + C.xxzz;
+  x12.xy -= i1;
+
+// Permutations
+  i = mod289(i); // Avoid truncation effects in permutation
+  vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 ))
+		+ i.x + vec3(0.0, i1.x, 1.0 ));
+
+  vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+  m = m*m ;
+  m = m*m ;
+
+// Gradients: 41 points uniformly over a line, mapped onto a diamond.
+// The ring size 17*17 = 289 is close to a multiple of 41 (41*7 = 287)
+
+  vec3 x = 2.0 * fract(p * C.www) - 1.0;
+  vec3 h = abs(x) - 0.5;
+  vec3 ox = floor(x + 0.5);
+  vec3 a0 = x - ox;
+
+// Normalise gradients implicitly by scaling m
+// Approximation of: m *= inversesqrt( a0*a0 + h*h );
+  m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
+
+// Compute final noise value at P
+  vec3 g;
+  g.x  = a0.x  * x0.x  + h.x  * x0.y;
+  g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+  return 130.0 * dot(m, g);
+}
+
+uniform vec2 iResolution;
+uniform vec2 offset;
+uniform float zoom;
+
+void main(void)
+{
+    float n = snoise((gl_FragCoord.xy + offset.xy)/10)*0.05;
+    gl_FragColor.rgb = gl_Color.rgb * (1-n);
+    gl_FragColor.a = gl_Color.a;
+})";
+}
+
+constexpr float IslandSize(10000);
+
+xy::TextureResource IslandComponent::m_textures;
+
+IslandComponent::IslandComponent(xy::MessageBus& mb, int seed, float lowTide, float highTide, float highAltitude, float currentSeaLevel) :
     m_seed(seed),
     m_currentDiagram(nullptr),
     m_entity(nullptr),
     xy::Component(mb, this),
     vGen(),
-    m_noise()
+    m_sites(4096),
+    m_noise(),
+    m_landPolys(static_cast<int>(CellType::OCEAN)),
+    m_lowTide(lowTide),
+    m_highTide(highTide),
+    m_highAltitude(highAltitude),
+    m_seaLevel(currentSeaLevel),
+    m_tidalCellIndex(0),
+    m_sleep(false)
 {
-    m_noise.SetNoiseType(FastNoise::NoiseType::SimplexFractal);
-    auto size = xy::Util::Random::value(minSize, maxSize);
-    m_bounds = {0.f, 0.f, size, size};
+    m_bounds = {0.f, 0.f, IslandSize, IslandSize };
 
     //handle sea level changes
     xy::Component::MessageHandler handler;
@@ -36,7 +135,8 @@ IslandComponent::IslandComponent(xy::MessageBus& mb, int seed) :
     handler.action = [this](xy::Component* c, const xy::Message& msg)
     {
         auto& data = msg.getData<float>();
-        updateSeaLevel(data);
+        if(!m_sleep)
+            updateSeaLevel(data);
     };
     addMessageHandler(handler);
 }
@@ -50,37 +150,41 @@ void IslandComponent::onStart(xy::Entity & ent)
     if(!m_entity)
         m_entity = &ent;
 
-    getRandomSites(2048);
+    //seed the engine first
+    xy::Util::Random::rndEngine.seed(m_seed);
+
+    getRandomSites(m_sites.size());
 
     m_noise = FastNoise();
     m_noise.SetNoiseType(FastNoise::NoiseType::SimplexFractal);
-    create(vGen.compute(m_sites,m_bounds));
-}
+    m_noise.SetFrequency(0.3 / m_bounds.height);
+    m_noise.SetFractalGain(5.0);
+    m_noise.SetFractalType(FastNoise::FractalType::Billow);
 
-template<typename T>
-bool IslandComponent::canReachOcean(const Cell<T>& cell, std::unordered_set<const Cell<float>*>& checkedCells)
-{
-    //if we're an edge cell then return true
-    if (cell.closeMe)
-        return true;
 
-    //if we've already been checked move on
-    if (checkedCells.find(&cell) != checkedCells.end())
-        return false;
+    //seed to a random value
+    m_noise.SetSeed(xy::Util::Random::value(0, std::numeric_limits<int>::max()));
+    m_currentDiagram = vGen.compute(m_sites,m_bounds);
 
-    checkedCells.insert(&cell);
+    //relax once
+    /*auto newDiag = vGen.relax();
+    delete m_currentDiagram;
+    m_currentDiagram = newDiag;*/
 
-    //if we aren't water then return false
-    if (m_waterCells.find(&cell) == m_waterCells.end())
-        return false;
+    //twice
+    /*newDiag = vGen.relax();
+    delete m_currentDiagram;
+    m_currentDiagram = newDiag;*/
 
-    //otherwise check our neighbours
-    for (auto& n : cell.getNeighbors())
-    {
-        if (canReachOcean(*n,checkedCells))
-            return true;
-    }
-    return false;
+    create(m_currentDiagram);
+
+    //add to the quad tree
+    auto qtc = xy::Component::create<xy::QuadTreeComponent>(getMessageBus(), m_bounds);
+    ent.addComponent(qtc);
+
+    //load the shader
+    m_shader.loadFromMemory(noiseShader,sf::Shader::Fragment);
+    m_shader.setUniform("iResolution", sf::Vector2f{ 1280,720 });
 }
 
 bool IslandComponent::isLand(const sf::Vector2f& position)
@@ -104,6 +208,10 @@ bool IslandComponent::isLand(const sf::Vector2f& position)
 
 bool IslandComponent::isLand(const Cell<float>* cell)
 {
+    //if it's an edge cell, deffo ocean
+    if (cell->closeMe)
+        return false;
+
     auto edges = cell->halfEdges;
 
     //check the ratio of corners which are above sea level
@@ -118,9 +226,34 @@ bool IslandComponent::isLand(const Cell<float>* cell)
     }
 
     //set ratio of corners which have to be land for it to be a land cell
-    auto cornerRatio = 0.2;
+    auto cornerRatio = 0.5;
 
     return (landCount / cornerCount) > cornerRatio;
+}
+
+CellType IslandComponent::getCellType(const sf::Vector2f & position)
+{
+    //check the entity is valid first
+    if (m_entity)
+    {
+        //convert to island local co-ordinates
+        auto localPos = m_entity->getTransform().getInverse().transformPoint(position);
+
+        for (auto cell : m_currentDiagram->cells)
+        {
+            //first check the bounding box
+            auto bounds = cell->getBoundingBox();
+            if (bounds.contains(sf::Vector2<float>(localPos)))
+            {
+                //then check the point detection
+                if (cell->pointIntersection(localPos.x, localPos.y) == 1)
+                    return m_cellTypes[cell];
+            }
+        }
+
+        //not found for some reason, probably ocean
+        return CellType::OCEAN;
+    }
 }
 
 template<typename T>
@@ -132,53 +265,49 @@ void IslandComponent::create(Diagram<T>* diagram)
 
     //clear all current cells
     m_cellTypes.clear();
+    m_tidalCells.clear();
 
-    //add coast and ocean
-    addOceanAndCoastCells();
-
-    //add land and lakes
-    addLandAndLakeCells();
-
-    //clear
-    m_landPolys.clear();
-
-    //create land polys
-    for (auto& cell : m_currentDiagram->cells)
+    //go through all cells and assign type based on height
+    for (auto cell : m_currentDiagram->cells)
     {
-        //adjust the colour based on type, ignoring ocean tiles
-        sf::Color cellColour;
-        auto cellType = m_cellTypes.find(cell);
-        if (cellType != m_cellTypes.end())
+        //force edge cells to be ocean though
+        if (cell->closeMe)
         {
-            switch (cellType->second)
-            {
-            case CellType::COAST:
-                cellColour = { 239, 221, 111 }; //sandy colour
-                break;
+            m_cellTypes[cell] = CellType::OCEAN;
+            continue;
+        }
 
-            case CellType::LAND:
-                cellColour = { 0,100,0 };
-                break;
+        auto height = getHeight(cell);
 
-            case CellType::LAKE:
-                cellColour = { 105,193,201 }; //lake-ier blue than the ocean
-                break;
-            }
+        CellType type;
+        if (height < m_seaLevel)
+        {
+            type = CellType::OCEAN;
+        }
+        else if (height < m_highTide)
+        {
+            type = CellType::COAST;
+        }
+        else if (height < m_highAltitude)
+        {
+            type = CellType::LAND;
+        }
+        else
+        {
+            type = CellType::HIGH_ALTITUDE;
+        }
+        m_cellTypes[cell] = type;
 
-            //add polys for everything except ocean
-            if (cellType->second != CellType::OCEAN)
-            {
-                //go through all the half edges
-                for (auto h : cell->halfEdges)
-                {
-                    //add a tri using start, end and site point
-                    m_landPolys.push_back({ sf::Vector2f(h->startPoint()->x,h->startPoint()->y),cellColour });
-                    m_landPolys.push_back({ sf::Vector2f(h->endPoint()->x, h->endPoint()->y),cellColour });
-                    m_landPolys.push_back({ sf::Vector2f(cell->site.p.x, cell->site.p.y),cellColour });
-                }
-            }
+        //add to the tidal cell vector if needed
+        if (height > m_lowTide && height < m_highTide)
+        {
+            m_tidalCells.push_back(cell);
         }
     }
+    
+    //sort all the tidal cells
+    std::sort(m_tidalCells.begin(), m_tidalCells.end(), [this](const Cell<float>* a, const Cell<float>* b) {return getHeight(a) < getHeight(b); });
+    updateVerts();
 }
 
 float IslandComponent::getHeight(sf::Vector2f pos)
@@ -195,9 +324,25 @@ float IslandComponent::getHeight(sf::Vector2f pos)
     auto df = 1 - (dv / (m_bounds.width));
 
     //if the noise value factored by the distance is over sea level, it's land
-    auto n = (m_noise.GetSimplexFractal(pos.x, pos.y) + 1) / 2;
+    auto n = 1 - ((m_noise.GetSimplexFractal(pos.x, pos.y) + 1) / 2);
 
-    return n;
+    return df * n;
+}
+
+float IslandComponent::getHeight(const Cell<float>* cell)
+{
+    float totalHeight(0.f);
+    //average the corner heights for the cell height
+    for (auto e : cell->halfEdges)
+    {
+        totalHeight += getHeight(*e->startPoint());
+    }
+    return totalHeight / cell->halfEdges.size();
+}
+
+void IslandComponent::setSleep(bool sleep)
+{
+    m_sleep = sleep;
 }
 
 void IslandComponent::getRandomSites(int count)
@@ -220,98 +365,108 @@ void IslandComponent::getRandomSites(int count)
     });
 }
 
-void IslandComponent::addOceanAndCoastCells()
+void IslandComponent::updateVerts()
 {
-    //gather all the edge cells
-    std::list<Cell<float>*> edgeCells;
-    for (auto c : m_currentDiagram->cells)
+    //clear
+    for (auto& layer : m_landPolys)
     {
-        if (c->closeMe)
-            edgeCells.push_back(c);
+        layer.clear();
     }
-
-    for (auto c : edgeCells)
+    //create land polys
+    for (auto& cell : m_currentDiagram->cells)
     {
-        //if it hasn't already been explored
-        if (m_cellTypes.find(c) == m_cellTypes.end())
+        //assign the cell a type based on its height
+        //assign it a cell
+        //adjust the colour based on type, ignoring ocean tiles
+        sf::Color cellColour;
+        auto cellType = m_cellTypes.find(cell);
+        if (cellType != m_cellTypes.end())
         {
-            //stack of explored cells, starting at this edge
-            std::stack<Cell<float>*> explorePath;
-            explorePath.push(c);
-            do
+            switch (cellType->second)
             {
-                auto cell = explorePath.top();
-                bool found = false;
-                //explore an unexplored neighbour
-                for (auto n : cell->getNeighbors())
+            case CellType::COAST:
+                cellColour = { 239, 221, 111 }; //sandy colour
+                break;
+
+            case CellType::LAND:
+                cellColour = { 0,100,0 };
+                break;
+
+            case CellType::HIGH_ALTITUDE:
+                cellColour = sf::Color::White; //snow
+                break;
+            }
+            //add polys for everything except ocean
+            if (cellType->second != CellType::OCEAN)
+            {
+                //go through all the half edges
+                for (auto h : cell->halfEdges)
                 {
-                    if (m_cellTypes.find(n) == m_cellTypes.end())
-                    {
-                        //check for edge cell
-                        if (n->closeMe)
-                        {
-                            m_cellTypes[n] = CellType::OCEAN;
-                            explorePath.push(n);
-                            found = true;
-                            break;
-                        }
-                        else if (isLand(n))
-                        {
-                            m_cellTypes[n] = CellType::COAST;
-                        }
-                        else
-                        {
-                            m_cellTypes[n] = CellType::OCEAN;
-                            explorePath.push(n);
-                            found = true;
-                            break;
-                        }
-                    }
+                    //add a tri using start, end and site point
+                    m_landPolys[static_cast<int>(cellType->second)].push_back({ sf::Vector2f(h->startPoint()->x,h->startPoint()->y),cellColour });
+                    m_landPolys[static_cast<int>(cellType->second)].push_back({ sf::Vector2f(h->endPoint()->x, h->endPoint()->y),cellColour });
+                    m_landPolys[static_cast<int>(cellType->second)].push_back({ sf::Vector2f(cell->site.p.x, cell->site.p.y),cellColour });
                 }
-                if (!found)
-                {
-                    //haven't found an unexplored neighbour, go back up the stack
-                    explorePath.pop();
-                }
-            } while (!explorePath.empty());
+            }
         }
     }
 }
 
-void IslandComponent::addLandAndLakeCells()
+void IslandComponent::entityUpdate(xy::Entity & entity, float dt)
 {
-    //go through all cells
-    for (auto c : m_currentDiagram->cells)
-    {
-        //first check it's not already assigned
-        if (m_cellTypes.find(c) == m_cellTypes.end())
-        {
-            //if it's above water, it's land, otherwise it's lake
-            if (isLand(c))
-            {
-                m_cellTypes[c] = CellType::LAND;
-            }
-            else
-            {
-                m_cellTypes[c] = CellType::LAKE;
-            }
-        }
-    }
+    //update shader params
+    sf::Vector2f pos = entity.getScene()->getView().getCenter();
+    pos.y = -pos.y;
+    m_shader.setUniform("offset", pos);
+    m_shader.setUniform("iResolution", entity.getScene()->getView().getSize());
 }
 
 void IslandComponent::draw(sf::RenderTarget & target, sf::RenderStates states) const
 {
-    states.transform *= getTransform();
-    target.draw(m_landPolys.data(),m_landPolys.size(),sf::PrimitiveType::Triangles, states);
+    if (!m_sleep)
+    {
+        states.transform *= getTransform();
+        states.shader = &m_shader;
+        for (auto& layer : m_landPolys)
+            target.draw(layer.data(), layer.size(), sf::PrimitiveType::Triangles, states);
 
-    //debug
-    //target.draw(*m_currentDiagram, states);
+        //using the palm tree texture
+        states.texture = &m_textures.get("PalmTree.png");
+
+        //debug
+        //target.draw(*m_currentDiagram, states);
+    }
 }
 
 void IslandComponent::updateSeaLevel(float seaLevel)
 {
+    //check the next closest tidal cell and adjust if necessary
+    if (seaLevel > m_seaLevel)
+    {
+        //tide coming in
+        while (getHeight(m_tidalCells[m_tidalCellIndex]) < m_seaLevel)
+        {
+            m_cellTypes[m_tidalCells[m_tidalCellIndex]] = CellType::OCEAN;
+            if (m_tidalCellIndex < m_tidalCells.size() - 1)
+                m_tidalCellIndex++;
+            else
+                break;
+        }
+    }
+    else
+    {
+        //tide going out
+        while (getHeight(m_tidalCells[m_tidalCellIndex]) > m_seaLevel)
+        {
+            m_cellTypes[m_tidalCells[m_tidalCellIndex]] = CellType::COAST;
+            if (m_tidalCellIndex > 0)
+                m_tidalCellIndex--;
+            else
+                break;
+        }
+    }
     m_seaLevel = seaLevel;
-    create(m_currentDiagram);
+    updateVerts();
 }
 
 sf::FloatRect IslandComponent::localBounds() const

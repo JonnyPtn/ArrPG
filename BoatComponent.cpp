@@ -21,7 +21,7 @@ BoatComponent::BoatComponent(xy::MessageBus& mb, xy::Entity& entity, xy::Physics
 
     //activate when setting sail
     xy::Component::MessageHandler handler;
-    handler.id = Messages::ON_LAND_CHANGE;
+    handler.id = Messages::BOAT_CHANGE;
     handler.action = [&](xy::Component* c, const xy::Message& msg)
     {
         if (m_active = !msg.getData<bool>())

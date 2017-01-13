@@ -3,5 +3,6 @@
 enum States
 {
     MainMenu,
-	Sailing,
+	NewGame,
+    LoadGame
 };

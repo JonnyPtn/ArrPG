@@ -7,40 +7,97 @@
 #include "IslandComponent.hpp"
 #include <xygine/App.hpp>
 #include <xygine/imgui/imgui.h>
+#include <xygine/FileSystem.hpp>
 
-WorldController::WorldController(xy::MessageBus& mb, int seed) :
+//some constants for world behaviour, should probably be in settings or something.
+//All values are in range 0-1
+
+WorldController::WorldController(xy::MessageBus& mb, const std::string& file) :
     xy::Component(mb, this),
-    m_seaLevel(0.5),
-    m_worldSeed(seed)
+    m_seaLevel(m_lowTide),
+    m_lowTide(0.42f),
+    m_highTide(0.5f),
+    m_highAltitude(0.7f),
+    m_dayLength(24 * 60), //24 IRL minutes == 1 in-game day
+    m_worldTicks(0),
+    m_currentTime(m_dayLength / 2), //It's hiiiigh nooon
+    m_tidePhaseTime(m_dayLength / 2.1), //slightly more than 2 high tides a day, so it's a different time each day
+    m_tideIncoming(true),
+    m_currentTideTime(0.f),
+    m_saveFilePath(file)
 {
     xy::Component::MessageHandler handler;
     handler.id = Messages::CREATE_ISLAND; 
     handler.action = [this](xy::Component* c, const xy::Message& msg)
     {
-        auto& data = msg.getData<NewIslandData>();
-        createIsland(data);
+        auto& data = msg.getData<std::pair<sf::Vector2f,int>>();
+        createIsland(data.first,data.second);
     };
     addMessageHandler(handler);
 
     //world debug settings
     xy::App::addUserWindow([this]()
     {
-        if (ImGui::SliderFloat("Sea Level", &m_seaLevel, 0.f, 1.f))
+        //show the current time of day
+        ImGui::Text("Current Time: "); ImGui::SameLine();
+        ImGui::Text((std::to_string(int(m_currentTime/(m_dayLength/24))) + ":").c_str()); ImGui::SameLine();
+        ImGui::Text("%02d",int(m_currentTime/m_dayLength*(60*24))%60);
+
+        //current sea level
+        ImGui::Text("Current Sea Level (range 0-1): %f", m_seaLevel);
+
+        //save button
+        if (ImGui::Button("Save"))
         {
-            auto msg = getMessageBus().post<float>(Messages::SEA_LEVEL_CHANGED);
-            *msg = m_seaLevel;
+            saveWorld();
         }
     });
 }
-
 
 WorldController::~WorldController()
 {
 }
 
+void WorldController::entityUpdate(xy::Entity & entity, float dt)
+{
+    //deduct dt from time until tick
+    m_currentTime += dt;
+
+    //if it's a new day, tick and reset
+    if (m_currentTime >= m_dayLength)
+    {
+        m_currentTime -= m_dayLength;
+        m_worldTicks++;
+    }
+
+
+    //update the tide
+    m_currentTideTime += dt;
+    
+    if (m_currentTideTime > m_tidePhaseTime)
+    {
+        m_currentTideTime -= m_tidePhaseTime;
+        m_tideIncoming = !m_tideIncoming;
+    }
+    else
+    {
+        //update the sea level
+        float startHeight = m_tideIncoming ? m_lowTide : m_highTide;
+        float endHeight = m_tideIncoming ? m_highTide : m_lowTide;
+
+        //interpolate for the current sea level
+        m_seaLevel = startHeight + ((endHeight - startHeight)*m_currentTideTime / m_tidePhaseTime);
+        auto msg = getMessageBus().post<float>(Messages::SEA_LEVEL_CHANGED);
+        *msg = m_seaLevel;
+    }
+}
+
 void WorldController::onStart(xy::Entity & ent)
 {
     m_entity = &ent;
+   
+    if(m_saveFilePath.length())
+        loadWorld();
 }
 
 bool WorldController::isLand(const sf::Vector2f position)
@@ -58,30 +115,18 @@ bool WorldController::isLand(const sf::Vector2f position)
     return false;
 }
 
-void WorldController::createIsland(NewIslandData d)
-{
-    //set the island seed first
-    xy::Util::Random::rndEngine.seed(d.seed);
-
-    //find a suitable position for it
-    auto closestIsland = std::numeric_limits<float>::max();
-    auto pos = sf::Vector2f();
-
-    //pick a random position within range of the player
-    auto x = xy::Util::Random::value(d.playerPosition.x - IslandDensity, d.playerPosition.x + IslandDensity);
-    auto y = xy::Util::Random::value(d.playerPosition.y - IslandDensity, d.playerPosition.y + IslandDensity);
-    pos = { x,y };
-    
+void WorldController::createIsland(sf::Vector2f position, int seed)
+{    
     //create a new entity for the island
     auto island = xy::Entity::create(getMessageBus());
-    island->setPosition(pos);
-    auto islandController = xy::Component::create<IslandComponent>(getMessageBus(),xy::Util::Random::value(0,std::numeric_limits<int>::max()));
+    island->setPosition(position);
+    auto islandController = xy::Component::create<IslandComponent>(getMessageBus(),seed,m_lowTide,m_highTide,m_highAltitude,m_seaLevel);
     island->addComponent(islandController);
     auto isleBounds = island->globalBounds();
     island->setOrigin(isleBounds.width / 2, isleBounds.height / 2);
 
     //check for collisions with any other islands
-    bool done(true);
+   /* bool done(true);
     do
     {
         done = true;
@@ -100,6 +145,50 @@ void WorldController::createIsland(NewIslandData d)
             }
         }
     } while (!done);
-    auto bounds = island->globalBounds();
+    auto bounds = island->globalBounds();*/
     m_islands.push_back(m_entity->getScene()->addEntity(island,xy::Scene::Layer::BackMiddle));
 }
+
+void WorldController::saveWorld()
+{
+    std::ofstream saveFile(m_saveFilePath,std::ios::trunc);
+
+    saveFile.write(reinterpret_cast<char*>(&m_worldSeed),sizeof(m_worldSeed));
+
+    for (auto i : m_islands)
+    {
+        //just save the position and the seed, the rest is procedural
+        auto isleComp = i->getComponent<IslandComponent>();
+
+        auto seed = isleComp->getSeed();
+        saveFile.write(reinterpret_cast<char*>(&seed), sizeof(seed));
+
+        auto pos = i->getPosition();
+        saveFile.write(reinterpret_cast<char*>(&pos.x), sizeof(pos.x));
+        saveFile.write(reinterpret_cast<char*>(&pos.y), sizeof(pos.y));
+    }
+}
+
+void WorldController::loadWorld()
+{
+    std::ifstream saveFile(m_saveFilePath, std::ios::binary);
+
+    saveFile.read(reinterpret_cast<char*>(&m_worldSeed), sizeof(m_worldSeed));
+
+    while (saveFile.good())
+    {
+        //must be some island data, spawn it
+        int seed;
+        saveFile.read(reinterpret_cast<char*>(&seed), sizeof(seed));
+
+        sf::Vector2f pos;
+        saveFile.read(reinterpret_cast<char*>(&pos.x), sizeof(pos.x));
+        saveFile.read(reinterpret_cast<char*>(&pos.y), sizeof(pos.y));
+        
+        //have to post a message instead of calling the function directly otherwise it poos a brick
+        auto msg = getMessageBus().post<std::pair<sf::Vector2f, int>>(Messages::CREATE_ISLAND);
+        msg->first = pos;
+        msg->second = seed;
+    }
+}
+

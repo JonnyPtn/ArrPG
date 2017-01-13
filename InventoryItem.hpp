@@ -8,15 +8,17 @@
 class InventoryItem
 {
 public:
-    const std::string&      m_name; //also used as icon asset name
+    InventoryItem(const std::string& name) : m_name(name) { };
+    virtual ~InventoryItem() {};
+    const std::string      m_name; //also used as icon asset name?
 };
-
 //going to define the derived classes here for now bc lazy
 
 class Wood : public InventoryItem
 {
 public:
-    Wood() : InventoryItem({ "Wood" }) {};
+    Wood() : InventoryItem("Wood") {};
+    ~Wood() {};
 };
 
 class Rope : public InventoryItem

@@ -17,6 +17,8 @@
 #include "Messages.hpp"
 #include <xygine/postprocess/OldSchool.hpp>
 #include <xygine/components/Camera.hpp>
+#include "InventoryComponent.hpp"
+#include "InventoryUI.hpp"
 
 SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context, const std::string& worldFile)
     : xy::State(stack, context),
@@ -45,8 +47,16 @@ SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context, 
     player->setOrigin(bounds.width / 2, bounds.height / 2);
     player->addComponent(playerComponent);
 
+    //player inventory
+    auto inventory = xy::Component::create<InventoryComponent>(m_messageBus, 16);
+    inventory->give<Wood>(10);
+    inventory->give<Rope>(5);
+    m_playerInventory = player->addComponent(inventory);
+
+
+    //player camera
     auto cam = xy::Component::create<xy::Camera>(m_messageBus, m_scene.getView());
-    cam->setZoom(3.f);
+    cam->setZoom(1.f);
     m_playerCam = player->addComponent(cam);
 
     m_player = m_scene.addEntity(player, xy::Scene::Layer::FrontFront);
@@ -72,6 +82,11 @@ SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context, 
         m_snapToNorth = !m_snapToNorth;
     });
     m_UIContainer.addControl(m_compass);
+
+    //inventory display
+    auto inv = xy::UI::create<InventoryUI>(*m_playerInventory);
+    inv->setPosition(50, 500);
+    m_UIContainer.addControl(inv);
 
 }
 

@@ -9,6 +9,7 @@
 #include <xygine/ui/Label.hpp>
 #include <xygine/ui/Button.hpp>
 #include "WorldController.hpp"
+#include "InventoryComponent.hpp"
 
 class SailingState : public xy::State
 {
@@ -32,6 +33,7 @@ private:
 	xy::TextureResource		m_textures;
     const std::string&      m_saveFilePath;
     xy::Camera*             m_playerCam;
+    InventoryComponent*     m_playerInventory;
 
     //UI
     xy::UI::Container               m_UIContainer;

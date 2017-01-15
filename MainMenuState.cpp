@@ -8,7 +8,8 @@
 #include <SFML/Window/Event.hpp>
 
 MainMenuState::MainMenuState(xy::StateStack & stack, xy::State::Context & context)
-    : xy::State(stack,context)
+    : xy::State(stack,context),
+    m_canLoad(true)
 {
     xy::App::setClearColour(sf::Color::White);
     //logo
@@ -38,6 +39,14 @@ MainMenuState::MainMenuState(xy::StateStack & stack, xy::State::Context & contex
     m_loadGameText.setOrigin(gb.width / 2, lb.top + gb.height / 2);
     m_loadGameText.setPosition(context.renderWindow.getSize().x / 2, context.renderWindow.getSize().y - 50);
     m_loadGameText.setFillColor(sf::Color::Black);
+
+    //disable load game if saves folder is empty
+    auto files = xy::FileSystem::listFiles("saves/");
+    if (files.empty())
+    {
+        m_canLoad = false;
+        m_loadGameText.setColor({ 128,128,128,128 });
+    }
 }
 
 MainMenuState::~MainMenuState()
@@ -52,14 +61,15 @@ bool MainMenuState::handleEvent(const sf::Event & evt)
     {
         if (m_newGameText.getGlobalBounds().contains(mPos))
         {
-            //start a new game
+            //go straight to playing
             requestStackPop();
-            requestStackPush(States::NewGame);
+            requestStackPush(States::Playing);
         }
-        else if (m_loadGameText.getGlobalBounds().contains(mPos))
+        else if (m_canLoad && m_loadGameText.getGlobalBounds().contains(mPos))
         {
-            //start a new game
+            //go to playing but load a game first
             requestStackPop();
+            requestStackPush(States::Playing);
             requestStackPush(States::LoadGame);
         }
     }

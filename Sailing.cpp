@@ -1,6 +1,9 @@
 #include "Sailing.hpp"
 #include "SailingState.hpp"
 #include "MainMenuState.hpp"
+#include "LoadGameState.hpp"
+#include "SaveGameState.hpp"
+#include "PauseMenuState.hpp"
 #include "States.hpp"
 
 Sailing::Sailing() :
@@ -22,9 +25,12 @@ void Sailing::handleMessage(const xy::Message & message)
 
 void Sailing::registerStates()
 {
-    m_stateStack.registerState<SailingState>(States::NewGame,"");
-    m_stateStack.registerState<SailingState>(States::LoadGame, "world.boop");
+    m_stateStack.registerState<SailingState>(States::Playing);
+    m_stateStack.registerState<LoadGameState>(States::LoadGame);
     m_stateStack.registerState<MainMenuState>(States::MainMenu);
+    m_stateStack.registerState<SaveGameState>(States::SaveGame);
+    m_stateStack.registerState<LoadGameState>(States::LoadGame);
+    m_stateStack.registerState<PauseMenuState>(States::PauseMenu);
 
 	//first state
 	m_stateStack.pushState(States::MainMenu);

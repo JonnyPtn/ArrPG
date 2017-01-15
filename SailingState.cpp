@@ -20,14 +20,13 @@
 #include "InventoryComponent.hpp"
 #include "InventoryUI.hpp"
 
-SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context, const std::string& worldFile)
+SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context)
     : xy::State(stack, context),
     m_messageBus(context.appInstance.getMessageBus()),
     m_scene(m_messageBus),
     m_physicsWorld(m_messageBus),
     m_UIContainer(m_messageBus),
-    m_snapToNorth(false),
-    m_saveFilePath(worldFile)
+    m_snapToNorth(false)
 {
     xy::App::setClearColour({ 0,41,58 });
   
@@ -36,7 +35,7 @@ SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context, 
 
     //add the world Entity
     auto world = xy::Entity::create(m_messageBus);
-    auto worldController = xy::Component::create<WorldController>(m_messageBus, m_saveFilePath);
+    auto worldController = xy::Component::create<WorldController>(m_messageBus);
     auto wc = world->addComponent(worldController);
     m_world = m_scene.addEntity(world, xy::Scene::Layer::BackRear);
 
@@ -102,6 +101,19 @@ bool SailingState::handleEvent(const sf::Event & evt)
         m_playerCam->setZoom(1.f + evt.mouseWheelScroll.delta*0.2f);
         break;
     }
+
+    case sf::Event::KeyPressed:
+    {
+        switch (evt.key.code)
+        {
+        case sf::Keyboard::Escape:
+        {
+            //pause menu
+            requestStackPush(States::PauseMenu);
+            return true;
+        }
+        }
+    }
     }
 
     //update UI
@@ -159,5 +171,5 @@ void SailingState::draw()
 }
 xy::StateID SailingState::stateID() const
 {
-	return m_saveFilePath.length() ? States::LoadGame : States::NewGame;
+    return States::Playing;
 }

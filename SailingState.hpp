@@ -15,7 +15,7 @@
 class SailingState : public xy::State
 {
 public:
-	SailingState(xy::StateStack& stack , xy::State::Context& context, const std::string& worldFile); 
+	SailingState(xy::StateStack& stack , xy::State::Context& context); 
 	~SailingState();
 
 	bool handleEvent(const sf::Event& evt) override;
@@ -32,7 +32,7 @@ private:
     xy::Entity*             m_world;
 	sf::RectangleShape*		m_seaShape;
 	xy::TextureResource		m_textures;
-    const std::string&      m_saveFilePath;
+    std::string             m_saveFilePath;
     xy::Camera*             m_playerCam;
     InventoryComponent*     m_playerInventory;
 

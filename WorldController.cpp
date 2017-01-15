@@ -12,7 +12,7 @@
 //some constants for world behaviour, should probably be in settings or something.
 //All values are in range 0-1
 
-WorldController::WorldController(xy::MessageBus& mb, const std::string& file) :
+WorldController::WorldController(xy::MessageBus& mb) :
     xy::Component(mb, this),
     m_seaLevel(m_lowTide),
     m_lowTide(0.42f),
@@ -24,7 +24,7 @@ WorldController::WorldController(xy::MessageBus& mb, const std::string& file) :
     m_tidePhaseTime(m_dayLength / 2.1), //slightly more than 2 high tides a day, so it's a different time each day
     m_tideIncoming(true),
     m_currentTideTime(0.f),
-    m_saveFilePath(file)
+    m_saveFilePath()
 {
     xy::Component::MessageHandler handler;
     handler.id = Messages::CREATE_ISLAND; 
@@ -32,6 +32,25 @@ WorldController::WorldController(xy::MessageBus& mb, const std::string& file) :
     {
         auto& data = msg.getData<std::pair<sf::Vector2f,int>>();
         createIsland(data.first,data.second);
+    };
+    addMessageHandler(handler);
+
+    handler.id = Messages::LOAD_WORLD;
+    handler.action = [this](xy::Component* c, const xy::Message& msg)
+    {
+        auto& data = msg.getData<std::string>();
+        m_saveFilePath = data;
+        load();
+    }
+    ;
+    addMessageHandler(handler);
+
+    handler.id = Messages::SAVE_WORLD;
+    handler.action = [this](xy::Component* c, const xy::Message& msg)
+    {
+        auto& data = msg.getData<std::string>();
+        m_saveFilePath = data;
+        save();
     };
     addMessageHandler(handler);
 
@@ -45,12 +64,6 @@ WorldController::WorldController(xy::MessageBus& mb, const std::string& file) :
 
         //current sea level
         ImGui::Text("Current Sea Level (range 0-1): %f", m_seaLevel);
-
-        //save button
-        if (ImGui::Button("Save"))
-        {
-            saveWorld();
-        }
     });
 }
 
@@ -95,9 +108,6 @@ void WorldController::entityUpdate(xy::Entity & entity, float dt)
 void WorldController::onStart(xy::Entity & ent)
 {
     m_entity = &ent;
-   
-    if(m_saveFilePath.length())
-        loadWorld();
 }
 
 bool WorldController::isLand(const sf::Vector2f position)
@@ -149,11 +159,10 @@ void WorldController::createIsland(sf::Vector2f position, int seed)
     m_islands.push_back(m_entity->getScene()->addEntity(island,xy::Scene::Layer::BackMiddle));
 }
 
-void WorldController::saveWorld()
+void WorldController::save()
 {
-    std::ofstream saveFile(m_saveFilePath,std::ios::trunc);
-
-    saveFile.write(reinterpret_cast<char*>(&m_worldSeed),sizeof(m_worldSeed));
+    std::ofstream file(m_saveFilePath, std::ios::app);
+    file.write(reinterpret_cast<char*>(&m_worldSeed),sizeof(m_worldSeed));
 
     for (auto i : m_islands)
     {
@@ -161,15 +170,15 @@ void WorldController::saveWorld()
         auto isleComp = i->getComponent<IslandComponent>();
 
         auto seed = isleComp->getSeed();
-        saveFile.write(reinterpret_cast<char*>(&seed), sizeof(seed));
+        file.write(reinterpret_cast<char*>(&seed), sizeof(seed));
 
         auto pos = i->getPosition();
-        saveFile.write(reinterpret_cast<char*>(&pos.x), sizeof(pos.x));
-        saveFile.write(reinterpret_cast<char*>(&pos.y), sizeof(pos.y));
+        file.write(reinterpret_cast<char*>(&pos.x), sizeof(pos.x));
+        file.write(reinterpret_cast<char*>(&pos.y), sizeof(pos.y));
     }
 }
 
-void WorldController::loadWorld()
+void WorldController::load()
 {
     std::ifstream saveFile(m_saveFilePath, std::ios::binary);
 

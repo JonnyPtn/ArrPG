@@ -3,6 +3,8 @@
 enum States
 {
     MainMenu,
-	NewGame,
-    LoadGame
+    Playing,
+    LoadGame,
+    SaveGame,
+    PauseMenu
 };

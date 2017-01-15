@@ -25,5 +25,6 @@ private:
     sf::Font            m_menuFont;
     sf::Text            m_newGameText;
     sf::Text            m_loadGameText;
+    bool                m_canLoad;
 };
 

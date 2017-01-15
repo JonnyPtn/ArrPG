@@ -7,7 +7,7 @@
 class WorldController : public xy::Component
 {
 public:
-    WorldController(xy::MessageBus& mb, const std::string& loadFile);
+    WorldController(xy::MessageBus& mb);
     ~WorldController();
 
     Component::Type type() const { return Component::Type::Script; }
@@ -25,10 +25,10 @@ private:
     std::vector<xy::Entity*> m_islands; //Stores the island data for this world, along with their position
     xy::Entity* m_entity;
 
-    const std::string& m_saveFilePath;
+    std::string m_saveFilePath; //also kind of doubles as the world name
 
-    void    saveWorld(); //save the world. To a hard drive, not like a superhero.
-    void    loadWorld(); //load one of the aforementioned worlds you saved
+    void    save(); //save the world. To a hard drive, not like a superhero.
+    void    load(); //load one of the aforementioned worlds you saved
 
     //world parameters
     //define how the world behaves

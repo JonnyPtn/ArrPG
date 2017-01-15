@@ -4,6 +4,7 @@
 #include <xygine/Resource.hpp>
 
 #include "InventoryItem.hpp"
+#include "Messages.hpp"
 
 class InventoryComponent :public xy::Component
 {
@@ -28,16 +29,19 @@ public:
         return c > 0;
     }
 
-    template<class T>
-    void give(int count = 1) //give this inventory an item
+
+    void give(std::unique_ptr<InventoryItem>& item) //give this inventory an item
     {
         //reject if we don't have enough room
-        if (m_items.size() + count > m_maxSize)
+        if (m_items.size() == m_maxSize)
             xy::Logger::log("Inventory not big enough for item", xy::Logger::Type::Error);
         else
         {
-            while (count--)
-                m_items.emplace_back(std::make_unique<T>());
+            //send off message
+            auto msg = getMessageBus().post<std::string>(Messages::INVENTORY_CHANGE);
+            *msg = item->m_name;
+
+            m_items.emplace_back(std::move(item));
         }
     }
 

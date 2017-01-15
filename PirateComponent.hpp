@@ -15,6 +15,7 @@ public:
     virtual void entityUpdate(xy::Entity &, float) override;
 
     void onStart(xy::Entity& ent) override;
+    sf::FloatRect globalBounds() const override;
 
     void PirateComponent::destroy() override;
 

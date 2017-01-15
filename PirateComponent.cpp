@@ -31,7 +31,7 @@ void PirateComponent::entityUpdate(xy::Entity & ent, float)
     else
     {
         auto body = ent.getComponent<xy::Physics::RigidBody>();
-        auto force = 50.f;
+        auto force = 200.f;
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
         {
             body->applyForceToCentre({ 0,-force });
@@ -84,6 +84,11 @@ void PirateComponent::onStart(xy::Entity & entity)
     body->addCollisionShape(pirateShape);
     entity.addComponent(body);
 
+}
+
+sf::FloatRect PirateComponent::globalBounds() const
+{
+    return m_drawable->globalBounds();
 }
 
 void PirateComponent::destroy()

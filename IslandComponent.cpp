@@ -15,6 +15,8 @@
 #include <stack>
 #include <xygine/components/SpriteBatch.hpp>
 
+#include "LootComponent.hpp"
+
 
 namespace
 {
@@ -117,7 +119,7 @@ IslandComponent::IslandComponent(xy::MessageBus& mb, int seed, float lowTide, fl
     m_entity(nullptr),
     xy::Component(mb, this),
     vGen(),
-    m_sites(4096),
+    m_sites(512),
     m_noise(),
     m_landPolys(static_cast<int>(CellType::OCEAN)),
     m_lowTide(lowTide),
@@ -135,8 +137,8 @@ IslandComponent::IslandComponent(xy::MessageBus& mb, int seed, float lowTide, fl
     handler.action = [this](xy::Component* c, const xy::Message& msg)
     {
         auto& data = msg.getData<float>();
-        if(!m_sleep)
-            updateSeaLevel(data);
+      /*  if(!m_sleep)
+            updateSeaLevel(data);*/
     };
     addMessageHandler(handler);
 }
@@ -167,9 +169,9 @@ void IslandComponent::onStart(xy::Entity & ent)
     m_currentDiagram = vGen.compute(m_sites,m_bounds);
 
     //relax once
-    /*auto newDiag = vGen.relax();
+    auto newDiag = vGen.relax();
     delete m_currentDiagram;
-    m_currentDiagram = newDiag;*/
+    m_currentDiagram = newDiag;
 
     //twice
     /*newDiag = vGen.relax();
@@ -181,6 +183,9 @@ void IslandComponent::onStart(xy::Entity & ent)
     //add to the quad tree
     auto qtc = xy::Component::create<xy::QuadTreeComponent>(getMessageBus(), m_bounds);
     ent.addComponent(qtc);
+
+    //generate some booty
+    generateLoot();
 
     //load the shader
     m_shader.loadFromMemory(noiseShader,sf::Shader::Fragment);
@@ -239,6 +244,7 @@ CellType IslandComponent::getCellType(const sf::Vector2f & position)
         //convert to island local co-ordinates
         auto localPos = m_entity->getTransform().getInverse().transformPoint(position);
 
+        int i(0);
         for (auto cell : m_currentDiagram->cells)
         {
             //first check the bounding box
@@ -247,8 +253,9 @@ CellType IslandComponent::getCellType(const sf::Vector2f & position)
             {
                 //then check the point detection
                 if (cell->pointIntersection(localPos.x, localPos.y) == 1)
-                    return m_cellTypes[cell];
+                    return m_cellTypes[i];
             }
+            i++;
         }
 
         //not found for some reason, probably ocean
@@ -268,12 +275,13 @@ void IslandComponent::create(Diagram<T>* diagram)
     m_tidalCells.clear();
 
     //go through all cells and assign type based on height
+    int i(0);
     for (auto cell : m_currentDiagram->cells)
     {
         //force edge cells to be ocean though
         if (cell->closeMe)
         {
-            m_cellTypes[cell] = CellType::OCEAN;
+            m_cellTypes.push_back(CellType::OCEAN);
             continue;
         }
 
@@ -296,17 +304,18 @@ void IslandComponent::create(Diagram<T>* diagram)
         {
             type = CellType::HIGH_ALTITUDE;
         }
-        m_cellTypes[cell] = type;
+        m_cellTypes.push_back(type);
 
         //add to the tidal cell vector if needed
         if (height > m_lowTide && height < m_highTide)
         {
-            m_tidalCells.push_back(cell);
+            m_tidalCells.push_back(i);
         }
+        i++;
     }
     
     //sort all the tidal cells
-    std::sort(m_tidalCells.begin(), m_tidalCells.end(), [this](const Cell<float>* a, const Cell<float>* b) {return getHeight(a) < getHeight(b); });
+    std::sort(m_tidalCells.begin(), m_tidalCells.end(), [this](const int a, const int b) {return getHeight(m_currentDiagram->cells[a]) < getHeight(m_currentDiagram->cells[b]); });
     updateVerts();
 }
 
@@ -367,22 +376,18 @@ void IslandComponent::getRandomSites(int count)
 
 void IslandComponent::updateVerts()
 {
-    //clear
-    for (auto& layer : m_landPolys)
-    {
-        layer.clear();
-    }
     //create land polys
+    int vertCount(0), i(0);
     for (auto& cell : m_currentDiagram->cells)
     {
         //assign the cell a type based on its height
         //assign it a cell
         //adjust the colour based on type, ignoring ocean tiles
         sf::Color cellColour;
-        auto cellType = m_cellTypes.find(cell);
-        if (cellType != m_cellTypes.end())
-        {
-            switch (cellType->second)
+        auto cellType = m_cellTypes[i++];
+       /* if (cellType != m_cellTypes.end())
+        {*/
+            switch (cellType)
             {
             case CellType::COAST:
                 cellColour = { 239, 221, 111 }; //sandy colour
@@ -397,20 +402,31 @@ void IslandComponent::updateVerts()
                 break;
             }
             //add polys for everything except ocean
-            if (cellType->second != CellType::OCEAN)
+            if (cellType != CellType::OCEAN)
             {
                 //go through all the half edges
                 for (auto h : cell->halfEdges)
                 {
-                    //add a tri using start, end and site point
-                    m_landPolys[static_cast<int>(cellType->second)].push_back({ sf::Vector2f(h->startPoint()->x,h->startPoint()->y),cellColour });
-                    m_landPolys[static_cast<int>(cellType->second)].push_back({ sf::Vector2f(h->endPoint()->x, h->endPoint()->y),cellColour });
-                    m_landPolys[static_cast<int>(cellType->second)].push_back({ sf::Vector2f(cell->site.p.x, cell->site.p.y),cellColour });
+                    if (m_landPolys.size() <= vertCount)
+                    {
+                        //add a tri using start, end and site point
+                        m_landPolys.push_back({ sf::Vector2f(h->startPoint()->x,h->startPoint()->y),cellColour });
+                        m_landPolys.push_back({ sf::Vector2f(h->endPoint()->x, h->endPoint()->y),cellColour });
+                        m_landPolys.push_back({ sf::Vector2f(cell->site.p.x, cell->site.p.y),cellColour });
+                        vertCount += 3;
+                    }
+                    else
+                    {
+                        m_landPolys[vertCount++] = {sf::Vector2f(h->startPoint()->x, h->startPoint()->y), cellColour};
+                        m_landPolys[vertCount++] = { sf::Vector2f(h->startPoint()->x, h->startPoint()->y), cellColour };
+                        m_landPolys[vertCount++] = { sf::Vector2f(h->startPoint()->x, h->startPoint()->y), cellColour };
+                    }
                 }
             }
-        }
+        //}
     }
-}
+ }
+;
 
 void IslandComponent::entityUpdate(xy::Entity & entity, float dt)
 {
@@ -427,8 +443,7 @@ void IslandComponent::draw(sf::RenderTarget & target, sf::RenderStates states) c
     {
         states.transform *= getTransform();
         states.shader = &m_shader;
-        for (auto& layer : m_landPolys)
-            target.draw(layer.data(), layer.size(), sf::PrimitiveType::Triangles, states);
+        target.draw(m_landPolys.data(), m_landPolys.size(), sf::PrimitiveType::Triangles, states);
 
         //using the palm tree texture
         states.texture = &m_textures.get("PalmTree.png");
@@ -444,7 +459,7 @@ void IslandComponent::updateSeaLevel(float seaLevel)
     if (seaLevel > m_seaLevel)
     {
         //tide coming in
-        while (getHeight(m_tidalCells[m_tidalCellIndex]) < m_seaLevel)
+        while (getHeight(m_currentDiagram->cells[m_tidalCells[m_tidalCellIndex]]) < m_seaLevel)
         {
             m_cellTypes[m_tidalCells[m_tidalCellIndex]] = CellType::OCEAN;
             if (m_tidalCellIndex < m_tidalCells.size() - 1)
@@ -456,7 +471,7 @@ void IslandComponent::updateSeaLevel(float seaLevel)
     else
     {
         //tide going out
-        while (getHeight(m_tidalCells[m_tidalCellIndex]) > m_seaLevel)
+        while (getHeight(m_currentDiagram->cells[m_tidalCells[m_tidalCellIndex]]) > m_seaLevel)
         {
             m_cellTypes[m_tidalCells[m_tidalCellIndex]] = CellType::COAST;
             if (m_tidalCellIndex > 0)
@@ -467,6 +482,66 @@ void IslandComponent::updateSeaLevel(float seaLevel)
     }
     m_seaLevel = seaLevel;
     updateVerts();
+}
+
+void IslandComponent::generateLoot()
+{
+    //get some random positions and add loot there
+    //let's say... 100 wood
+    const int lootCount = 100;
+    for (int i = 0; i < lootCount; i++)
+    {
+        //create the entity
+        auto lootEntity = xy::Entity::create(getMessageBus());
+
+        //find a position
+        sf::Vector2f randomPos;
+        do
+        {
+            randomPos.x = xy::Util::Random::value(m_bounds.left, m_bounds.left + m_bounds.width);
+            randomPos.y = xy::Util::Random::value(m_bounds.top, m_bounds.top + m_bounds.height);
+        } while (!isLand(randomPos));
+        lootEntity->setPosition(randomPos);
+
+        //add the loot component, contains our loot (wood, would you beleive it!)
+        auto lootComp = xy::Component::create<LootComponent>(getMessageBus(), Wood(), m_textures);
+        lootEntity->addComponent(lootComp);
+
+        //add it to the quad tree too
+        auto qtc = xy::Component::create<xy::QuadTreeComponent>(getMessageBus(),lootEntity->globalBounds());
+        lootEntity->addComponent(qtc);
+
+        //add to the scene
+        m_entity->addChild(lootEntity);
+    }
+
+    //and 100 rope
+    const int ropeCount = 100;
+    for (int i = 0; i < ropeCount; i++)
+    {
+        //create the entity
+        auto lootEntity = xy::Entity::create(getMessageBus());
+
+        //find a position
+        sf::Vector2f randomPos;
+        do
+        {
+            randomPos.x = xy::Util::Random::value(m_bounds.left, m_bounds.left + m_bounds.width);
+            randomPos.y = xy::Util::Random::value(m_bounds.top, m_bounds.top + m_bounds.height);
+        } while (!isLand(randomPos));
+        lootEntity->setPosition(randomPos);
+
+        //add the loot component, contains our loot (wood, would you beleive it!)
+        auto lootComp = xy::Component::create<LootComponent>(getMessageBus(), Rope(), m_textures);
+
+        //add it to the quad tree too
+        auto qtc = xy::Component::create<xy::QuadTreeComponent>(getMessageBus(), lootComp->globalBounds());
+        lootEntity->addComponent(qtc);
+
+        //add to the scene
+        lootEntity->addComponent(lootComp);
+        m_entity->addChild(lootEntity);
+    }
 }
 
 sf::FloatRect IslandComponent::localBounds() const

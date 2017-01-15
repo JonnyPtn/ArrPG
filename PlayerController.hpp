@@ -19,8 +19,9 @@ public:
 	xy::Component::Type type() const { return xy::Component::Type::Script; }
 
 private:
+    xy::Entity*                 m_entity;
     xy::Entity*                 m_closestIsland;
-    std::vector<xy::Entity*>          m_islandsInRange;
+    std::vector<xy::Entity*>    m_islandsInRange;
     WorldController*            m_world;
     xy::TextureResource         m_playerTextures;
     bool                        m_onLand;

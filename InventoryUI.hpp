@@ -15,6 +15,8 @@ public:
     virtual void handleEvent(const sf::Event &, const sf::Vector2f &) override;
     virtual void setAlignment(xy::UI::Alignment) override;
 
+    void update();
+
 private:
     InventoryComponent&                 m_inventory;
     xy::TextureResource                 m_textures;

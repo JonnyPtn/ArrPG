@@ -55,20 +55,21 @@ private:
     template<typename T>
     void create(Diagram<T>* diagram); //create the island based on a voronoi diagram
     void getRandomSites(int count); //generate some random sites for the voronoi
-    void updateVerts();
-    void updateSeaLevel(float seaLevel);
+    void updateVerts(); //update the visuals
+    void updateSeaLevel(float seaLevel); //update this island with a new sea level
+    void generateLoot();
 
-    //because I'm a genius these need to be called in order
-
-    std::vector<sf::Vector2<float>>   m_sites;
-    xy::Entity*                       m_entity;
-    std::unordered_map<const Cell<float>*,CellType>      m_cellTypes; 
+    std::vector<sf::Vector2<float>>   m_sites; //points used for voronoi generation
+    xy::Entity*                       m_entity; //our entity
+    std::vector<CellType>             m_cellTypes; //the types of all cells, must be indexed in exactly the same order as the cells in the diagram
+    std::vector<int>                  m_tidalCells; //All the cells which are affected by tide, sorted by altitude and referencing the index of the cell in the diagram
+    int                               m_tidalCellIndex; //this is the index of the cell which is goint to be next affected by the tide
 
     VoronoiDiagramGenerator<float>  vGen;
     Diagram<float>*                 m_currentDiagram;
 
     //data for the island
-    std::vector<std::vector<sf::Vertex>>  m_landPolys; //polys for land, outer vector is for each cell type;   
+    std::vector<sf::Vertex>  m_landPolys; //polys for land, outer vector is for each cell type;   
     FastNoise                m_noise;
     sf::Rect<float>          m_bounds;
     int                      m_seed;
@@ -80,9 +81,6 @@ private:
 
     static xy::TextureResource  m_textures;
     sf::Shader                  m_shader;
-
-    std::vector<Cell<float>*>   m_tidalCells; //All the cells which are affected by tide, sorted by altitude
-    int                         m_tidalCellIndex; //this is the index of the cell which is goint to be next affected by the tide
 
     bool m_sleep; //are we asleep or not
     sf::Clock   m_shaderTime;

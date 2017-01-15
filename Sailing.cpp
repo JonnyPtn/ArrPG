@@ -4,9 +4,10 @@
 #include "States.hpp"
 
 Sailing::Sailing() :
-	m_stateStack({ getRenderWindow(),*this })
+    xy::App(), // for aa
+	m_stateStack({ getRenderWindow(),*this }) 
 {
-	registerStates();
+	registerStates(); 
 }
 
 void Sailing::handleEvent(const sf::Event &evt)

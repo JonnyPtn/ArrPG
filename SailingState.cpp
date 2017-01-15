@@ -49,8 +49,6 @@ SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context, 
 
     //player inventory
     auto inventory = xy::Component::create<InventoryComponent>(m_messageBus, 16);
-    inventory->give<Wood>(10);
-    inventory->give<Rope>(5);
     m_playerInventory = player->addComponent(inventory);
 
 
@@ -84,10 +82,9 @@ SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context, 
     m_UIContainer.addControl(m_compass);
 
     //inventory display
-    auto inv = xy::UI::create<InventoryUI>(*m_playerInventory);
-    inv->setPosition(50, 500);
-    m_UIContainer.addControl(inv);
-
+    m_inventory = xy::UI::create<InventoryUI>(*m_playerInventory);
+    m_inventory->setPosition(50, 500);
+    m_UIContainer.addControl(m_inventory);
 }
 
 SailingState::~SailingState()
@@ -102,8 +99,7 @@ bool SailingState::handleEvent(const sf::Event & evt)
     case sf::Event::MouseWheelScrolled:
     {
         auto view = m_scene.getView();
-        view.zoom(1.f + evt.mouseWheelScroll.delta*0.1f);
-       // m_scene.setView(view);
+        m_playerCam->setZoom(1.f + evt.mouseWheelScroll.delta*0.2f);
         break;
     }
     }
@@ -117,25 +113,27 @@ bool SailingState::handleEvent(const sf::Event & evt)
 void SailingState::handleMessage(const xy::Message &message)
 {
 	m_scene.handleMessage(message);
+
+    //check for inventory changes to update UI
+    if (message.id == Messages::INVENTORY_CHANGE)
+    {
+        m_inventory->update();
+    }
 }
 
 bool SailingState::update(float dt)
 {
     m_scene.update(dt);
-	auto view = m_scene.getView();
     auto boatPos = m_player->getWorldPosition(); 
-	/*view.setCenter(boatPos);
     if (m_snapToNorth)
     {
         m_compass->setRotation(-m_player->getRotation());
-        view.setRotation(m_player->getRotation());
+        //view.setRotation(m_player->getRotation());
     }
     else
     {
         m_compass->setRotation(0);
-        view.setRotation(0);
     }
-	m_scene.setView(view);*/
 
     //update co-ordinates
     m_xPosDisplay->setString(std::to_string(boatPos.x/100.f));
@@ -143,6 +141,8 @@ bool SailingState::update(float dt)
 
     //and the UI
     m_UIContainer.update(dt);
+
+    //check for player collisions
 	return false;
 }
 

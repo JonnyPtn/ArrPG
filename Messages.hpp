@@ -8,6 +8,7 @@ enum Messages
     SEA_LEVEL_CHANGED,
 
     //player stuff
-    BOAT_CHANGE
+    BOAT_CHANGE,
+    INVENTORY_CHANGE,
     
 };

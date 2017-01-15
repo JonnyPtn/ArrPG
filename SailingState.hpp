@@ -10,6 +10,7 @@
 #include <xygine/ui/Button.hpp>
 #include "WorldController.hpp"
 #include "InventoryComponent.hpp"
+#include "InventoryUI.hpp"
 
 class SailingState : public xy::State
 {
@@ -41,6 +42,7 @@ private:
     std::shared_ptr<xy::UI::Label>  m_xPosDisplay;
     std::shared_ptr<xy::UI::Label>  m_yPosDisplay;
     std::shared_ptr<xy::UI::Button> m_compass;
+    std::shared_ptr<InventoryUI>    m_inventory;
     bool                            m_snapToNorth;
 };
 

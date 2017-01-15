@@ -20,6 +20,8 @@
 #include "BoatComponent.hpp"
 #include "PirateComponent.hpp"
 #include <xygine/imgui/imgui_sfml.h>
+#include "LootComponent.hpp"
+#include "InventoryComponent.hpp"
 
 constexpr float viewDistance(15000.f);
 
@@ -32,6 +34,7 @@ PlayerController::PlayerController(xy::MessageBus& mb, WorldController& world) :
 
 void PlayerController::onStart(xy::Entity& entity)
 {
+    m_entity = &entity;
     //check if we're on land or sea and load appropriate component
    /* auto onLand = getMessageBus().post<bool>(Messages::BOAT_CHANGE);
     *onLand = m_world->isLand(entity.getWorldPosition());*/
@@ -165,22 +168,46 @@ void PlayerController::entityUpdate(xy::Entity & entity, float dt)
     for (auto c : qtc)
     {
         auto e = c->getEntity();
-        auto d = xy::Util::Vector::lengthSquared(pos - e->getPosition());
-        if (d < closestIsland)
+
+        //check if we're at least touching the entity
+        //but only if we can reach it
+        if (e->globalBounds().intersects(m_entity->globalBounds()))
         {
-            closestIsland = d;
-            m_closestIsland = e;
+            //if it's an island
+            auto i = e->getComponent<IslandComponent>();
+            if (i)
+            {
+                auto e = c->getEntity();
+                auto d = xy::Util::Vector::lengthSquared(pos - e->getPosition());
+                if (d < closestIsland)
+                {
+                    closestIsland = d;
+                    m_closestIsland = e;
+                }
+                //make sure this island is awake
+                i->setSleep(false);
+                m_islandsInRange.push_back(e);
+            }
+
+            //if it's loot, take it
+            auto l = e->getComponent<LootComponent>();
+
+            if (l)
+            {
+                if (l)
+                {
+                    auto inventory = m_entity->getComponent<InventoryComponent>();
+                    inventory->give(l->take());
+                }
+
+            }
         }
-        //make sure this island is awake
-        auto i = e->getComponent<IslandComponent>();
-        i->setSleep(false);
-        m_islandsInRange.push_back(e);
     }
 
     //update the verts for the nearest island
-    if (m_closestIsland)
+   /* if (m_closestIsland)
         m_debugLines->getDrawable()[0].position = entity.getWorldTransform().getInverse().transformPoint(m_closestIsland->getPosition());
-
+        */
     if (m_world)
     {
      /*   bool onLand = m_world->isLand(entity.getWorldPosition());

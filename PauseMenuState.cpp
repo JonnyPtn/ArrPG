@@ -11,6 +11,11 @@ PauseMenuState::PauseMenuState(xy::StateStack& stack, xy::State::Context& contex
     xy::State(stack,context),
     m_UIContainer(context.appInstance.getMessageBus())
 {
+
+    //create the greyout the size of the screen
+    m_greyout.setSize(context.defaultView.getSize());
+    m_greyout.setFillColor({ 128, 128, 128, 100 }); //slightly grey
+
     //save button
     auto saveButton = xy::UI::create<xy::UI::Button>(m_fonts.get("Westmeath.ttf"), m_textures.get());
     saveButton->setString("Save");
@@ -25,6 +30,9 @@ PauseMenuState::PauseMenuState(xy::StateStack& stack, xy::State::Context& contex
 
     m_UIContainer.setAlignment(xy::UI::Alignment::Centre);
     m_UIContainer.setPosition(context.defaultView.getCenter());
+    //create the greyout the size of the screen
+    m_greyout.setSize(context.defaultView.getSize());
+    m_greyout.setFillColor({ 128, 128, 128, 100 }); //slightly grey
 }
 
 
@@ -53,6 +61,7 @@ void PauseMenuState::draw()
 {
     auto& rt = getContext().renderWindow;
     rt.setView(rt.getDefaultView());
+    rt.draw(m_greyout);
     rt.draw(m_UIContainer);
 }
 

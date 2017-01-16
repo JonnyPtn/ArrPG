@@ -43,6 +43,8 @@ SaveGameState::SaveGameState(xy::StateStack & stack, xy::State::Context & contex
     //save button
     auto saveButton = xy::UI::create<xy::UI::Button>(m_fonts.get("Westemeath.ttf"),m_textures.get());
     saveButton->setAlignment(xy::UI::Alignment::Centre);
+    saveButton->setString("Save");
+    saveButton->setPosition({ 0,50 });
     saveButton->addCallback([this]()
     {
         //check the input box first

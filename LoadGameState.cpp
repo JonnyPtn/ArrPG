@@ -17,16 +17,19 @@ LoadGameState::LoadGameState(xy::StateStack & stack, xy::State::Context & contex
 
     //create the greyout the size of the screen
     m_greyout.setSize(context.defaultView.getSize());
-    m_greyout.setFillColor({128, 128, 128, 100}); //slightly grey
+    m_greyout.setFillColor({ 128, 128, 128, 100 }); //slightly grey
 
     //"Select Game:" label
     auto label = xy::UI::create<xy::UI::Label>(m_fonts.get("Westmeath.ttf"));
     label->setString("Select Game:");
+    label->setAlignment(xy::UI::Alignment::Centre);
+    label->setPosition({ 0,-100 });
     m_UIContainer.addControl(label);
 
     //game selection box
     m_fileSelection = xy::UI::create<xy::UI::Selection>(m_fonts.get("Westmeath.ttd"), m_textures.get("assets/generic/SelectionArrow.png"));
-    
+    m_fileSelection->setAlignment(xy::UI::Alignment::Centre);
+
     //find all save file names
     auto saveFilePath = "saves/";
     auto files = xy::FileSystem::listFiles(saveFilePath);
@@ -38,15 +41,22 @@ LoadGameState::LoadGameState(xy::StateStack & stack, xy::State::Context & contex
         m_fileSelection->addItem(file, index++);
     }
 
+    m_UIContainer.addControl(m_fileSelection);
+
     //load button
     auto button = xy::UI::create<xy::UI::Button>(m_fonts.get("Westmeath.ttd"), m_textures.get());
     button->setAlignment(xy::UI::Alignment::Centre);
+    button->setString("Load");
+    button->setPosition({ 0,100 });
     button->addCallback([this]()
     {
+        //go to playing state
+        requestStackPop();
         //load the selected file
         auto msg = getContext().appInstance.getMessageBus().post<std::string>(Messages::LOAD_WORLD);
         *msg = m_fileSelection->getSelectedText();
     });
+    m_UIContainer.addControl(button); 
 
     m_UIContainer.setAlignment(xy::UI::Alignment::Centre);
     m_UIContainer.setPosition(context.defaultView.getCenter());

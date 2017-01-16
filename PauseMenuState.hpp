@@ -20,6 +20,7 @@ private:
     xy::UI::Container   m_UIContainer;
     xy::FontResource    m_fonts;
     xy::TextureResource m_textures;
+    sf::RectangleShape  m_greyout;
    
 };
 

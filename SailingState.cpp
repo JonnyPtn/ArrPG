@@ -126,6 +126,14 @@ void SailingState::handleMessage(const xy::Message &message)
 {
 	m_scene.handleMessage(message);
 
+    //check for loading a game
+    if (message.id == Messages::LOAD_WORLD)
+    {
+        auto world = m_world->getComponent<WorldController>();
+        auto data = message.getData<std::string>();
+        world->load(data);
+    }
+
     //check for inventory changes to update UI
     if (message.id == Messages::INVENTORY_CHANGE)
     {

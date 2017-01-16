@@ -165,7 +165,7 @@ void IslandComponent::onStart(xy::Entity & ent)
 
 
     //seed to a random value
-    m_noise.SetSeed(xy::Util::Random::value(0, std::numeric_limits<int>::max()));
+    m_noise.SetSeed(xy::Util::Random::value(0, m_seed));
     m_currentDiagram = vGen.compute(m_sites,m_bounds);
 
     //relax once

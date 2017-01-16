@@ -17,6 +17,9 @@ public:
     ///check if a world position is on land or not
     bool isLand(const sf::Vector2f position);
 
+    void    save(); //save the world. To a hard drive, not like a superhero.
+    void    load(const std::string& saveFile); //load one of the aforementioned worlds you saved
+
 private:
 
     void createIsland(sf::Vector2f pos, int seed);
@@ -26,9 +29,6 @@ private:
     xy::Entity* m_entity;
 
     std::string m_saveFilePath; //also kind of doubles as the world name
-
-    void    save(); //save the world. To a hard drive, not like a superhero.
-    void    load(); //load one of the aforementioned worlds you saved
 
     //world parameters
     //define how the world behaves

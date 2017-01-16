@@ -27,22 +27,12 @@ WorldController::WorldController(xy::MessageBus& mb) :
     m_saveFilePath()
 {
     xy::Component::MessageHandler handler;
-    handler.id = Messages::CREATE_ISLAND; 
-    handler.action = [this](xy::Component* c, const xy::Message& msg)
-    {
-        auto& data = msg.getData<std::pair<sf::Vector2f,int>>();
-        createIsland(data.first,data.second);
-    };
-    addMessageHandler(handler);
-
     handler.id = Messages::LOAD_WORLD;
     handler.action = [this](xy::Component* c, const xy::Message& msg)
     {
         auto& data = msg.getData<std::string>();
-        m_saveFilePath = data;
-        load();
-    }
-    ;
+        load(data);
+    };
     addMessageHandler(handler);
 
     handler.id = Messages::SAVE_WORLD;
@@ -51,6 +41,14 @@ WorldController::WorldController(xy::MessageBus& mb) :
         auto& data = msg.getData<std::string>();
         m_saveFilePath = data;
         save();
+    };
+    addMessageHandler(handler);
+
+    handler.id = Messages::CREATE_ISLAND; 
+    handler.action = [this](xy::Component* c, const xy::Message& msg)
+    {
+        auto& data = msg.getData<std::pair<sf::Vector2f,int>>();
+        createIsland(data.first,data.second);
     };
     addMessageHandler(handler);
 
@@ -161,7 +159,11 @@ void WorldController::createIsland(sf::Vector2f position, int seed)
 
 void WorldController::save()
 {
-    std::ofstream file(m_saveFilePath, std::ios::app);
+    //make sure saves directory exists
+    if(!xy::FileSystem::directoryExists("saves"))
+        xy::FileSystem::createDirectory("saves");
+
+    std::ofstream file("saves/" + m_saveFilePath, std::ios::app);
     file.write(reinterpret_cast<char*>(&m_worldSeed),sizeof(m_worldSeed));
 
     for (auto i : m_islands)
@@ -178,13 +180,14 @@ void WorldController::save()
     }
 }
 
-void WorldController::load()
+void WorldController::load(const std::string& saveFilePath)
 {
-    std::ifstream saveFile(m_saveFilePath, std::ios::binary);
+    m_saveFilePath = saveFilePath;
+    std::ifstream saveFile("saves/" + m_saveFilePath, std::ios::binary);
 
     saveFile.read(reinterpret_cast<char*>(&m_worldSeed), sizeof(m_worldSeed));
 
-    while (saveFile.good())
+  //  while (saveFile.good())
     {
         //must be some island data, spawn it
         int seed;

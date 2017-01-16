@@ -14,7 +14,7 @@ PauseMenuState::PauseMenuState(xy::StateStack& stack, xy::State::Context& contex
 
     //create the greyout the size of the screen
     m_greyout.setSize(context.defaultView.getSize());
-    m_greyout.setFillColor({ 128, 128, 128, 100 }); //slightly grey
+    m_greyout.setFillColor({ 128, 128, 128, 255 }); //slightly grey
 
     //save button
     auto saveButton = xy::UI::create<xy::UI::Button>(m_fonts.get("Westmeath.ttf"), m_textures.get());

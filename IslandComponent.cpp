@@ -119,7 +119,7 @@ IslandComponent::IslandComponent(xy::MessageBus& mb, int seed, float lowTide, fl
     m_entity(nullptr),
     xy::Component(mb, this),
     vGen(),
-    m_sites(512),
+    m_sites(2048),
     m_noise(),
     m_landPolys(static_cast<int>(CellType::OCEAN)),
     m_lowTide(lowTide),

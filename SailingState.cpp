@@ -19,6 +19,7 @@
 #include <xygine/components/Camera.hpp>
 #include "InventoryComponent.hpp"
 #include "InventoryUI.hpp"
+#include "SeaDrawable.hpp"
 
 SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context)
     : xy::State(stack, context),
@@ -38,6 +39,12 @@ SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context)
     auto worldController = xy::Component::create<WorldController>(m_messageBus);
     auto wc = world->addComponent(worldController);
     m_world = m_scene.addEntity(world, xy::Scene::Layer::BackRear);
+
+    //and the sea
+    auto sea = xy::Entity::create(m_messageBus);
+    auto seaDrawable = xy::Component::create<SeaDrawable>(m_messageBus);
+    sea->addComponent(seaDrawable);
+    m_scene.addEntity(sea,xy::Scene::Layer::BackRear);
 
     //add the player Entity
     auto player = xy::Entity::create(m_messageBus);

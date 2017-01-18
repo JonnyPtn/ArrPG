@@ -65,7 +65,7 @@ void PlayerController::onStart(xy::Entity& entity)
             //get the island component
             auto island = m_closestIsland->getComponent<IslandComponent>();
 
-            auto cc = island->getCellType(entity.getPosition());
+            auto cc = island->getCellType(static_cast<sf::Vector2<double>>(entity.getPosition()));
             ImGui::Text("Current Biome: "); ImGui::SameLine();
             switch (cc)
             {

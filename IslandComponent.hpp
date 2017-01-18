@@ -38,35 +38,33 @@ public:
     bool isLand(const sf::Vector2f& position);
 
     ///checks if a cell is above sea level
-    bool isLand(const Cell<float>* cell);
+    bool isLand(const Cell* cell);
 
     ///get's the cell type for a given position
-    CellType getCellType(const sf::Vector2f& position);
+    CellType getCellType(const sf::Vector2<double>& position);
 
-    float getHeight(sf::Vector2f pos); //get the height of a co-ordinate on this island
-    float getHeight(const Cell<float>* cell); //get the height of a cell on this island
+    float getHeight(sf::Vector2<double>& pos); //get the height of a co-ordinate on this island
+    float getHeight(const Cell* cell); //get the height of a cell on this island
 
     void setSleep(bool sleep);
 
     int getSeed() const {return m_seed;}
 
 private:
-
-    template<typename T>
-    void create(Diagram<T>* diagram); //create the island based on a voronoi diagram
+    void create(Diagram* diagram); //create the island based on a voronoi diagram
     void getRandomSites(int count); //generate some random sites for the voronoi
     void updateVerts(); //update the visuals
     void updateSeaLevel(float seaLevel); //update this island with a new sea level
     void generateLoot();
 
-    std::vector<sf::Vector2<float>>   m_sites; //points used for voronoi generation
+    std::vector<sf::Vector2<double>>   m_sites; //points used for voronoi generation
     xy::Entity*                       m_entity; //our entity
     std::vector<CellType>             m_cellTypes; //the types of all cells, must be indexed in exactly the same order as the cells in the diagram
     std::vector<int>                  m_tidalCells; //All the cells which are affected by tide, sorted by altitude and referencing the index of the cell in the diagram
     int                               m_tidalCellIndex; //this is the index of the cell which is goint to be next affected by the tide
 
-    VoronoiDiagramGenerator<float>  vGen;
-    Diagram<float>*                 m_currentDiagram;
+    VoronoiDiagramGenerator  vGen;
+    Diagram*                 m_currentDiagram;
 
     //data for the island
     std::vector<sf::Vertex>  m_landPolys; //polys for land, outer vector is for each cell type;   

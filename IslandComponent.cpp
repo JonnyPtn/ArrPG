@@ -166,7 +166,7 @@ void IslandComponent::onStart(xy::Entity & ent)
 
     //seed to a random value
     m_noise.SetSeed(xy::Util::Random::value(0, m_seed));
-    m_currentDiagram = vGen.compute(m_sites,m_bounds);
+    m_currentDiagram = vGen.compute(m_sites,static_cast<sf::Rect<double>>(m_bounds));
 
     //relax once
     auto newDiag = vGen.relax();
@@ -201,7 +201,7 @@ bool IslandComponent::isLand(const sf::Vector2f& position)
     {
         //first check the bounding box
         auto bounds = cell->getBoundingBox();
-        if (bounds.contains(sf::Vector2<float>(localPos)))
+        if (bounds.contains(sf::Vector2<double>(localPos)))
         {
             //then check the point detection
             if (cell->pointIntersection(localPos.x, localPos.y) == 1)
@@ -211,7 +211,7 @@ bool IslandComponent::isLand(const sf::Vector2f& position)
     return false;
 }
 
-bool IslandComponent::isLand(const Cell<float>* cell)
+bool IslandComponent::isLand(const Cell* cell)
 {
     //if it's an edge cell, deffo ocean
     if (cell->closeMe)
@@ -236,26 +236,26 @@ bool IslandComponent::isLand(const Cell<float>* cell)
     return (landCount / cornerCount) > cornerRatio;
 }
 
-CellType IslandComponent::getCellType(const sf::Vector2f & position)
+CellType IslandComponent::getCellType(const sf::Vector2<double> & position)
 {
     //check the entity is valid first
     if (m_entity)
     {
         //convert to island local co-ordinates
-        auto localPos = m_entity->getTransform().getInverse().transformPoint(position);
+        auto localPos = m_entity->getTransform().getInverse().transformPoint(static_cast<sf::Vector2f>(position));
 
         int i(0);
         for (auto cell : m_currentDiagram->cells)
         {
             //first check the bounding box
             auto bounds = cell->getBoundingBox();
-            if (bounds.contains(sf::Vector2<float>(localPos)))
+            if (bounds.contains(static_cast<sf::Vector2<double>>(localPos)))
             {
                 //then check the point detection
                 if (cell->pointIntersection(localPos.x, localPos.y) == 1)
                     return m_cellTypes[i];
             }
-            i++;
+            i++; 
         }
 
         //not found for some reason, probably ocean
@@ -263,8 +263,7 @@ CellType IslandComponent::getCellType(const sf::Vector2f & position)
     }
 }
 
-template<typename T>
-void IslandComponent::create(Diagram<T>* diagram)
+void IslandComponent::create(Diagram* diagram)
 {
    if(m_currentDiagram && m_currentDiagram != diagram)
         delete m_currentDiagram;
@@ -312,16 +311,16 @@ void IslandComponent::create(Diagram<T>* diagram)
             m_tidalCells.push_back(i);
         }
         i++;
-    }
+    } 
     
     //sort all the tidal cells
     std::sort(m_tidalCells.begin(), m_tidalCells.end(), [this](const int a, const int b) {return getHeight(m_currentDiagram->cells[a]) < getHeight(m_currentDiagram->cells[b]); });
     updateVerts();
 }
 
-float IslandComponent::getHeight(sf::Vector2f pos)
+float IslandComponent::getHeight(sf::Vector2<double>& pos)
 {
-    sf::Vector2f centre;
+    sf::Vector2<double> centre;
     centre.x = localBounds().width / 2;
     centre.y = localBounds().height / 2;
 
@@ -338,7 +337,7 @@ float IslandComponent::getHeight(sf::Vector2f pos)
     return df * n;
 }
 
-float IslandComponent::getHeight(const Cell<float>* cell)
+float IslandComponent::getHeight(const Cell* cell)
 {
     float totalHeight(0.f);
     //average the corner heights for the cell height
@@ -364,7 +363,7 @@ void IslandComponent::getRandomSites(int count)
     }
 
     //sort them
-    std::sort(m_sites.begin(), m_sites.end(), [](const sf::Vector2<float>& s1, const sf::Vector2<float>& s2)
+    std::sort(m_sites.begin(), m_sites.end(), [](const sf::Vector2<double>& s1, const sf::Vector2<double>& s2)
     {
         if (s1.y < s2.y)
             return true;

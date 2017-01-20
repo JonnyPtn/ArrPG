@@ -15,7 +15,7 @@ Sailing::Sailing() :
 
 void Sailing::handleEvent(const sf::Event &evt)
 {
-	m_stateStack.handleEvent(evt);
+    m_stateStack.handleEvent(evt);
 }
 
 void Sailing::handleMessage(const xy::Message & message)

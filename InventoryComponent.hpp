@@ -30,32 +30,9 @@ public:
     }
 
 
-    void give(std::unique_ptr<InventoryItem>& item) //give this inventory an item
-    {
-        //reject if we don't have enough room
-        if (m_items.size() == m_maxSize)
-            xy::Logger::log("Inventory not big enough for item", xy::Logger::Type::Error);
-        else
-        {
-            //send off message
-            auto msg = getMessageBus().post<std::string>(Messages::INVENTORY_CHANGE);
-            *msg = item->m_name;
+    void give(std::unique_ptr<InventoryItem>& item); //give this inventory an item
 
-            m_items.emplace_back(std::move(item));
-        }
-    }
-
-    template<class T>
-    void take(int count = 1) //take an item from this inventory
-    {
-        while (count--)
-        {
-            m_items.erase(std::find_if(m_items.begin(), m_items.end(), [&](const std::unique_ptr<InventoryItem>& a)
-            {
-                return dynamic_cast<T*>(a.get()) != nullptr;
-            }));
-        }
-    }
+    std::unique_ptr<InventoryItem> take(const std::string& name); //take an item from this inventory
 
     int getMaxSize() const { return m_maxSize; }
 

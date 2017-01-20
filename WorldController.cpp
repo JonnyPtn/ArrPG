@@ -15,10 +15,10 @@
 WorldController::WorldController(xy::MessageBus& mb) :
     xy::Component(mb, this),
     m_seaLevel(m_lowTide),
-    m_lowTide(0.42f),
-    m_highTide(0.5f),
+    m_lowTide(0.4f),
+    m_highTide(0.7f),
     m_highAltitude(0.7f),
-    m_dayLength(24 * 60), //24 IRL minutes == 1 in-game day
+    m_dayLength(0.1 * 60), //24 IRL minutes == 1 in-game day
     m_worldTicks(0),
     m_currentTime(m_dayLength / 2), //It's hiiiigh nooon
     m_tidePhaseTime(m_dayLength / 2.1), //slightly more than 2 high tides a day, so it's a different time each day
@@ -121,6 +121,11 @@ bool WorldController::isLand(const sf::Vector2f position)
         }
     }
     return false;
+}
+
+float WorldController::getWorldTimeOfDay()
+{
+    return m_currentTime / m_dayLength;
 }
 
 void WorldController::createIsland(sf::Vector2f position, int seed)

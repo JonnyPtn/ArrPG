@@ -15,6 +15,7 @@ public:
 	~PlayerController();
 	void onStart(xy::Entity& entity) override;
 	void entityUpdate(xy::Entity& entity, float dt) override;
+    void kill(); //kill this player, not IRL
 
 	xy::Component::Type type() const { return xy::Component::Type::Script; }
 

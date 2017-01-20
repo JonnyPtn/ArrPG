@@ -119,7 +119,7 @@ IslandComponent::IslandComponent(xy::MessageBus& mb, int seed, float lowTide, fl
     m_entity(nullptr),
     xy::Component(mb, this),
     vGen(),
-    m_sites(2048),
+    m_sites(248),
     m_noise(),
     m_landPolys(static_cast<int>(CellType::OCEAN)),
     m_lowTide(lowTide),
@@ -137,8 +137,8 @@ IslandComponent::IslandComponent(xy::MessageBus& mb, int seed, float lowTide, fl
     handler.action = [this](xy::Component* c, const xy::Message& msg)
     {
         auto& data = msg.getData<float>();
-      /*  if(!m_sleep)
-            updateSeaLevel(data);*/
+        if(!m_sleep)
+            updateSeaLevel(data);
     };
     addMessageHandler(handler);
 }
@@ -377,6 +377,7 @@ void IslandComponent::updateVerts()
 {
     //create land polys
     int vertCount(0), i(0);
+    m_landPolys.clear();
     for (auto& cell : m_currentDiagram->cells)
     {
         //assign the cell a type based on its height
@@ -406,20 +407,20 @@ void IslandComponent::updateVerts()
                 //go through all the half edges
                 for (auto h : cell->halfEdges)
                 {
-                    if (m_landPolys.size() <= vertCount)
-                    {
+                   // if (m_landPolys.size() <= vertCount)
+                   // {
                         //add a tri using start, end and site point
                         m_landPolys.push_back({ sf::Vector2f(h->startPoint()->x,h->startPoint()->y),cellColour });
                         m_landPolys.push_back({ sf::Vector2f(h->endPoint()->x, h->endPoint()->y),cellColour });
                         m_landPolys.push_back({ sf::Vector2f(cell->site.p.x, cell->site.p.y),cellColour });
-                        vertCount += 3;
-                    }
-                    else
+                   // }
+                  /*  else
                     {
-                        m_landPolys[vertCount++] = {sf::Vector2f(h->startPoint()->x, h->startPoint()->y), cellColour};
-                        m_landPolys[vertCount++] = { sf::Vector2f(h->startPoint()->x, h->startPoint()->y), cellColour };
-                        m_landPolys[vertCount++] = { sf::Vector2f(h->startPoint()->x, h->startPoint()->y), cellColour };
-                    }
+                        m_landPolys[vertCount] = {sf::Vector2f(h->startPoint()->x, h->startPoint()->y), cellColour};
+                        m_landPolys[vertCount+1] = { sf::Vector2f(h->startPoint()->x, h->startPoint()->y), cellColour };
+                        m_landPolys[vertCount+2] = { sf::Vector2f(h->startPoint()->x, h->startPoint()->y), cellColour };
+                    }*/
+                    vertCount += 3;
                 }
             }
         //}
@@ -458,6 +459,7 @@ void IslandComponent::updateSeaLevel(float seaLevel)
     if (seaLevel > m_seaLevel)
     {
         //tide coming in
+
         while (getHeight(m_currentDiagram->cells[m_tidalCells[m_tidalCellIndex]]) < m_seaLevel)
         {
             m_cellTypes[m_tidalCells[m_tidalCellIndex]] = CellType::OCEAN;
@@ -503,7 +505,7 @@ void IslandComponent::generateLoot()
         lootEntity->setPosition(randomPos);
 
         //add the loot component, contains our loot (wood, would you beleive it!)
-        auto lootComp = xy::Component::create<LootComponent>(getMessageBus(), Wood(), m_textures);
+        auto lootComp = xy::Component::create<LootComponent>(getMessageBus(), std::make_unique<Wood>(), m_textures);
         lootEntity->addComponent(lootComp);
 
         //add it to the quad tree too
@@ -531,7 +533,7 @@ void IslandComponent::generateLoot()
         lootEntity->setPosition(randomPos);
 
         //add the loot component, contains our loot (wood, would you beleive it!)
-        auto lootComp = xy::Component::create<LootComponent>(getMessageBus(), Rope(), m_textures);
+        auto lootComp = xy::Component::create<LootComponent>(getMessageBus(), std::make_unique<Rope>(), m_textures);
 
         //add it to the quad tree too
         auto qtc = xy::Component::create<xy::QuadTreeComponent>(getMessageBus(), lootComp->globalBounds());

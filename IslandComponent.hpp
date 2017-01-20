@@ -44,7 +44,7 @@ public:
     CellType getCellType(const sf::Vector2<double>& position);
 
     float getHeight(sf::Vector2<double>& pos); //get the height of a co-ordinate on this island
-    float getHeight(const Cell* cell); //get the height of a cell on this island
+    float getHeight(const Cell* cell); //get the height of a cell on this island 
 
     void setSleep(bool sleep);
 

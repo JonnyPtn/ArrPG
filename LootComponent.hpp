@@ -11,13 +11,11 @@
 class LootComponent : public xy::Component, public sf::Drawable
 {
 public:
-    template<typename T>
-    LootComponent(xy::MessageBus& mb,T item,xy::TextureResource& textures) :
+    LootComponent(xy::MessageBus& mb,std::unique_ptr<InventoryItem> item,xy::TextureResource& textures) :
         xy::Component(mb, this),
-        m_item(std::make_unique<T>(item))
+        m_item(std::move(item))
     {
-        static_assert(std::is_base_of<InventoryItem, T>::value, "Must be derived from InventoryItem");
-        sprite.setTexture(textures.get("assets/Inventory/" + item.m_name + ".png"));
+        sprite.setTexture(textures.get("assets/Inventory/" + m_item->m_name + ".png"));
     };
     ~LootComponent() {};
 

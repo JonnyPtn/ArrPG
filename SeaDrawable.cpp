@@ -1,75 +1,23 @@
 #include "SeaDrawable.hpp"
 #include <SFML/Graphics/RenderTarget.hpp>
+#include <SFML/Graphics/Sprite.hpp>
 #include <xygine/Entity.hpp>
 #include <xygine/Scene.hpp>
-
-namespace
-{
-    const std::string seaShader =
-        R"(
-
-// Found this on GLSL sandbox. I really liked it, changed a few things and made it tileable.
-// :)
-// by David Hoskins.
-
-
-// Water turbulence effect by joltz0r 2013-07-04, improved 2013-07-07
-
-#define TAU 6.28318530718
-#define MAX_ITER 5
-
-uniform float iGlobalTime;
-uniform vec2 iResolution;
-uniform vec2 offset;
-
-void main(void)
-{
-  float time = iGlobalTime * .5+23.0;
-    // uv should be the 0-1 uv of texture...
-	vec2 uv = ((gl_FragCoord.xy + offset.xy)/ iResolution.xy);
-    
-#ifdef SHOW_TILING
-	vec2 p = mod(uv*TAU*2.0, TAU)-250.0;
-#else
-    vec2 p = mod(uv*TAU, TAU)-250.0;
-#endif
-	vec2 i = vec2(p);
-	float c = 1.0;
-	float inten = .005;
-
-	for (int n = 0; n < MAX_ITER; n++) 
-	{
-		float t = time * (1.0 - (3.5 / float(n+1)));
-		i = p + vec2(cos(t - i.x) + sin(t + i.y), sin(t - i.y) + cos(t + i.x));
-		c += 1.0/length(vec2(p.x / (sin(i.x+t)/inten),p.y / (cos(i.y+t)/inten)));
-	}
-	c /= float(MAX_ITER);
-	c = 1.17-pow(c, 1.4);
-	vec3 colour = vec3(pow(abs(c), 8.0));
-    colour = clamp(colour + vec3(0.0, 0.35, 0.5), 0.0, 1.0);
-    
-
-	#ifdef SHOW_TILING
-	// Flash tile borders...
-	vec2 pixel = 2.0 / iResolution.xy;
-	uv *= 2.0;
-
-	float f = floor(mod(iGlobalTime*.5, 2.0)); 	// Flash value.
-	vec2 first = step(pixel, uv) * f;		   	// Rule out first screen pixels and flash.
-	uv  = step(fract(uv), pixel);				// Add one line of pixels per tile.
-	colour = mix(colour, vec3(1.0, 1.0, 0.0), (uv.x + uv.y) * first.x * first.y); // Yellow line
-	
-	#endif
-	gl_FragColor = vec4(colour, 1.0);
-})";
-}
-
+#include <xygine/App.hpp>
+#include <xygine/imgui/imgui_sfml.h>
+#include <xygine/imgui/imgui.h>
+#include <chrono>
+#include "Messages.hpp"
+#include "FastNoise.h"
+#include "WorldController.hpp"
+#include <xygine/util/Math.hpp>
+#include <xygine/util/Vector.hpp>
 
 SeaDrawable::SeaDrawable(xy::MessageBus& mb) :
     xy::Component(mb, this)
 {
     //load the shader
-    m_shader.loadFromMemory(seaShader, sf::Shader::Fragment);
+    m_shader.loadFromFile("assets/shaders/sea.frag", sf::Shader::Fragment);
     m_clock.restart();
 }
 
@@ -87,7 +35,69 @@ void SeaDrawable::onDelayedStart(xy::Entity & ent)
 {
     auto size = ent.getScene()->getView().getSize();
     m_shape.setSize({ size.x, size.y });
-    m_shader.setUniform("iResolution", m_shape.getSize());
+    m_shader.setUniform("iResolution", sf::Vector2f(m_shape.getSize().x, m_shape.getSize().y));
+
+    //sand texture for shader
+    m_sandTexture.loadFromFile("assets/terrain/sand.png");
+    m_shader.setUniform("terrainTex", m_sandTexture);
+
+    //white noise texture for shader
+    FastNoise noise;
+    auto now = std::chrono::system_clock::now().time_since_epoch().count();
+    noise.SetSeed(now);
+    noise.SetFrequency(1.0);
+    noise.SetNoiseType(FastNoise::Simplex);
+    sf::Image noiseImage;
+    noiseImage.create(256, 256);
+    for (int x = 0; x < noiseImage.getSize().x; x++)
+    {
+        for (int y = 0; y < noiseImage.getSize().y; y++)
+        {
+            auto n = (noise.GetValue(x, y) +1)/2;
+            sf::Uint8 nc = 255 * n; //fraction as uint8 for colour
+            noiseImage.setPixel(x, y, { nc,nc,nc });
+        }
+    }
+    m_seaNoiseTexture.loadFromImage(noiseImage);
+    m_shader.setUniform("noiseTex", m_seaNoiseTexture);
+
+    //handle sea level changes
+    xy::Component::MessageHandler handler;
+    handler.id = Messages::SEA_LEVEL_CHANGED;
+    handler.action = [this](xy::Component* c, const xy::Message& msg)
+    {
+        auto& data = msg.getData<float>();
+        m_seaLevel = data;
+        //needs to be in the range 0-2.0 for the shader
+        m_shader.setParameter("waterLevel", m_seaLevel*2);
+    };
+    addMessageHandler(handler);
+
+    //debug
+    xy::App::addUserWindow([this]()
+    {
+        sf::Sprite noiseSprite(m_seaNoiseTexture);
+        ImGui::Image(noiseSprite);
+        if (ImGui::SliderFloat("Sea Level", &m_seaLevel, 0.f, 2.f))
+        {
+            m_shader.setParameter("waterLevel", m_seaLevel);
+        }
+
+        //sun position
+        if (ImGui::SliderFloat("sunX", &m_sunDirection.x, -5.f, 5.f))
+        {
+            m_shader.setParameter("light", m_sunDirection);
+        }
+        if (ImGui::SliderFloat("sunY", &m_sunDirection.y, -5.f, 5.f))
+        {
+            m_shader.setParameter("light", m_sunDirection);
+        }
+        if (ImGui::SliderFloat("sunZ", &m_sunDirection.z, -5.f, 5.f))
+        {
+            m_shader.setParameter("light", m_sunDirection);
+        }
+    });
+
 }
 
 void SeaDrawable::entityUpdate(xy::Entity & ent, float)
@@ -100,6 +110,19 @@ void SeaDrawable::entityUpdate(xy::Entity & ent, float)
     //get the position of the camera
     auto va = ent.getScene()->getVisibleArea();
     ent.setPosition(va.left, va.top);
+
+    //get the time of day
+    auto world = ent.getComponent<WorldController>();
+    if (world)
+    {
+        auto time = world->getWorldTimeOfDay();
+        
+        //get a 2d angle and convert to 3d
+        auto sunDir = xy::Util::Vector::rotate({ 0,1 },time*360);
+        m_sunDirection = { sunDir.x,0.f,std::fabs(-sunDir.y) };
+
+        m_shader.setParameter("light", m_sunDirection);
+    }
 }
 
 sf::FloatRect SeaDrawable::globalBounds() const

@@ -17,6 +17,8 @@ public:
     ///check if a world position is on land or not
     bool isLand(const sf::Vector2f position);
 
+    float getWorldTimeOfDay(); //get the time of day, as a fraction
+
     void    save(); //save the world. To a hard drive, not like a superhero.
     void    load(const std::string& saveFile); //load one of the aforementioned worlds you saved
 
@@ -34,7 +36,7 @@ private:
     //define how the world behaves
     float           m_dayLength;        //the IRL length of one in-game day in seconds
     unsigned int    m_worldTicks;       //keep track of the current world tick (day?) - for regen?
-    float           m_currentTime;      //current time of day, in seconds
+    float           m_currentTime;      //current time of day
     const float     m_lowTide;          //everything below this is always ocean
     const float     m_highTide;         //everything below this but above lowtide is coast
     float           m_seaLevel;         //sea level range 0-1

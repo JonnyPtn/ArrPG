@@ -47,10 +47,6 @@ void PlayerController::onStart(xy::Entity& entity)
     auto debugLine = xy::Component::create<xy::SfDrawableComponent<sf::VertexArray>>(getMessageBus());
     debugLine->getDrawable().setPrimitiveType(sf::Lines);
 
-    //2 verts for nearest island
-    debugLine->getDrawable().append({ { 0.f,0.f },sf::Color::Yellow });
-    debugLine->getDrawable().append({ { 0.f,0.f },sf::Color::Yellow });
-
     m_debugLines = entity.addComponent(debugLine);
 
     //heightMap
@@ -80,6 +76,7 @@ void PlayerController::onStart(xy::Entity& entity)
                 break;
             case CellType::OCEAN:
                 ImGui::Text("Ocean");
+                kill();
                 break;
             }
 
@@ -112,7 +109,10 @@ void PlayerController::onStart(xy::Entity& entity)
             ImGui::Image(m_heightMapSprite);*/
         }
         else
+        {
+            kill();
             ImGui::Text("Current Biome: Ocean");
+        }
 
         //quick debug button to spawn island on player
         if (ImGui::Button("Spawn Island"))
@@ -154,17 +154,6 @@ void PlayerController::entityUpdate(xy::Entity & entity, float dt)
 
     //find the nearest one
     float closestIsland(std::numeric_limits<float>::max());
-    if (qtc.empty())
-    {
-        m_closestIsland = nullptr;
-        m_debugLines->getDrawable()[0].color = sf::Color::Transparent;
-        m_debugLines->getDrawable()[1].color = sf::Color::Transparent;
-    }
-    else
-    {
-        m_debugLines->getDrawable()[0].color = sf::Color::Yellow;
-        m_debugLines->getDrawable()[1].color = sf::Color::Yellow;
-    }
     for (auto c : qtc)
     {
         auto e = c->getEntity();
@@ -216,4 +205,46 @@ void PlayerController::entityUpdate(xy::Entity & entity, float dt)
             m_onLand = onLand;
         }*/
     }
+}
+
+void PlayerController::kill()
+{
+    //reset the position back to 0
+    auto body = m_entity->getComponent<xy::Physics::RigidBody>();
+
+    //dump inventory
+    auto inv = m_entity->getComponent<InventoryComponent>();
+
+    //gather item names
+    std::vector<std::string> itemNames;
+    for (auto& i : inv->getItems())
+        itemNames.push_back(i->m_name);
+
+    //gather items
+    std::vector<std::unique_ptr<InventoryItem>> items;
+    for (auto& i : itemNames)
+        items.push_back(inv->take(i));
+
+    //dump items as loot
+    for (auto i = items.begin(); i!= items.end();i++)
+    {
+        //create the entity
+        auto lootEntity = xy::Entity::create(getMessageBus());
+
+        lootEntity->setPosition(m_entity->getPosition());
+
+        //add the loot component, contains our loot (wood, would you beleive it!)
+        auto lootComp = xy::Component::create<LootComponent>(getMessageBus(), std::move(*i), m_playerTextures);
+        lootEntity->addComponent(lootComp);
+
+        //add it to the quad tree too
+        auto qtc = xy::Component::create<xy::QuadTreeComponent>(getMessageBus(), lootEntity->globalBounds());
+        lootEntity->addComponent(qtc);
+
+        //add to the scene
+        m_entity->getScene()->addEntity(lootEntity,xy::Scene::Layer::BackMiddle);
+    }
+
+        
+    body->setTransform({ 0,0 }, 0);
 }

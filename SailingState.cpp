@@ -38,13 +38,13 @@ SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context)
     auto world = xy::Entity::create(m_messageBus);
     auto worldController = xy::Component::create<WorldController>(m_messageBus);
     auto wc = world->addComponent(worldController);
-    m_world = m_scene.addEntity(world, xy::Scene::Layer::BackRear);
 
-    //and the sea
-    auto sea = xy::Entity::create(m_messageBus);
+    //attach the sea to the world
     auto seaDrawable = xy::Component::create<SeaDrawable>(m_messageBus);
-    sea->addComponent(seaDrawable);
-    m_scene.addEntity(sea,xy::Scene::Layer::BackRear);
+    world->addComponent(seaDrawable);
+
+    //add world to the scene
+    m_world = m_scene.addEntity(world, xy::Scene::Layer::BackRear);
 
     //add the player Entity
     auto player = xy::Entity::create(m_messageBus);
@@ -60,7 +60,7 @@ SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context)
 
     //player camera
     auto cam = xy::Component::create<xy::Camera>(m_messageBus, m_scene.getView());
-    cam->setZoom(1.f);
+    //cam->setZoom(0.3f);
     m_playerCam = player->addComponent(cam);
 
     m_player = m_scene.addEntity(player, xy::Scene::Layer::FrontFront);
@@ -105,7 +105,7 @@ bool SailingState::handleEvent(const sf::Event & evt)
     case sf::Event::MouseWheelScrolled:
     {
         auto view = m_scene.getView();
-        m_playerCam->setZoom(1.f + evt.mouseWheelScroll.delta*0.2f);
+        //m_playerCam->setZoom(1.f + evt.mouseWheelScroll.delta*0.2f);
         break;
     }
 

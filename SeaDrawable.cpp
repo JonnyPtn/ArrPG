@@ -119,7 +119,7 @@ void SeaDrawable::entityUpdate(xy::Entity & ent, float)
         
         //get a 2d angle and convert to 3d
         auto sunDir = xy::Util::Vector::rotate({ 0,1 },time*360);
-        m_sunDirection = { sunDir.x,0.f,std::fabs(-sunDir.y) };
+        m_sunDirection = { sunDir.x,0.55f,(-sunDir.y)*3.f };
 
         m_shader.setParameter("light", m_sunDirection);
     }

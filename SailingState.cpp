@@ -60,7 +60,7 @@ SailingState::SailingState(xy::StateStack & stack, xy::State::Context& context)
 
     //player camera
     auto cam = xy::Component::create<xy::Camera>(m_messageBus, m_scene.getView());
-    //cam->setZoom(0.3f);
+    cam->lockTransform(xy::Camera::TransformLock::Rotation);
     m_playerCam = player->addComponent(cam);
 
     m_player = m_scene.addEntity(player, xy::Scene::Layer::FrontFront);
@@ -179,7 +179,7 @@ void SailingState::draw()
 
     m_scene.setActiveCamera(m_playerCam);
     rt.draw(m_scene);
-   // rt.draw(m_physicsWorld);
+    //rt.draw(m_physicsWorld);
 
     rt.setView(rt.getDefaultView());
     rt.draw(m_UIContainer);

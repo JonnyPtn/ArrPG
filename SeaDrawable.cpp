@@ -39,6 +39,7 @@ void SeaDrawable::onDelayedStart(xy::Entity & ent)
 
     //sand texture for shader
     m_sandTexture.loadFromFile("assets/terrain/sand.png");
+    m_sandTexture.setRepeated(true);
     m_shader.setUniform("terrainTex", m_sandTexture);
 
     //white noise texture for shader

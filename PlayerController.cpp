@@ -39,89 +39,24 @@ void PlayerController::onStart(xy::Entity& entity)
    /* auto onLand = getMessageBus().post<bool>(Messages::BOAT_CHANGE);
     *onLand = m_world->isLand(entity.getWorldPosition());*/
 
-    //add the pirate com
-    auto pirate = xy::Component::create<PirateComponent>(getMessageBus(), entity, m_playerTextures);
-    entity.addComponent(pirate);
+    //add the boat graphic
+    auto boat = xy::Component::create<xy::SfDrawableComponent<sf::Sprite>>(getMessageBus());
+    boat->getDrawable().setTexture(m_playerTextures.get("assets/Boat.png"));
+    auto bounds = boat->globalBounds();
+    boat->getDrawable().setOrigin(bounds.width / 2, bounds.height / 2);
+    boat->getDrawable().scale(0.1f, 0.1f);
 
-    //DEBUG STUFF
-    auto debugLine = xy::Component::create<xy::SfDrawableComponent<sf::VertexArray>>(getMessageBus());
-    debugLine->getDrawable().setPrimitiveType(sf::Lines);
+    //add the physics stuff
+    auto body = xy::Component::create<xy::Physics::RigidBody>(getMessageBus(), xy::Physics::BodyType::Dynamic);
+    body->setLinearDamping(1.f);
+    body->setAngularDamping(1.f);
+    xy::Physics::CollisionRectangleShape pirateShape({ boat->globalBounds().left,boat->globalBounds().top, boat->globalBounds().width,boat->globalBounds().height });
+    pirateShape.setDensity(1.0);
+    pirateShape.setRestitution(1.0);
+    body->addCollisionShape(pirateShape);
 
-    m_debugLines = entity.addComponent(debugLine);
-
-    //heightMap
-    m_heightMapTexture.create(std::sqrt(m_nearestIslandHeightMap.size() / 4), std::sqrt(m_nearestIslandHeightMap.size() / 4));
-    m_heightMapSprite.setTexture(m_heightMapTexture);
-
-    //debug window
-    xy::App::addUserWindow([&]()
-    {
-        if (m_closestIsland)
-        {
-            //get the island component
-            auto island = m_closestIsland->getComponent<IslandComponent>();
-
-            auto cc = island->getCellType(static_cast<sf::Vector2<double>>(entity.getPosition()));
-            ImGui::Text("Current Biome: "); ImGui::SameLine();
-            switch (cc)
-            {
-            case CellType::COAST:
-                ImGui::Text("Coast");
-                break;
-            case CellType::HIGH_ALTITUDE:
-                ImGui::Text("High Altitude");
-                break;
-            case CellType::LAND:
-                ImGui::Text("Inland");
-                break;
-            case CellType::OCEAN:
-                ImGui::Text("Ocean");
-                kill();
-                break;
-            }
-
-            //update the noise image
-          /*  int iX = island->globalBounds().width;
-            int iY = island->globalBounds().height;
-
-            auto stride = std::sqrt(m_nearestIslandHeightMap.size()/4);
-            for (int y = 0; y < stride;y++)
-            {
-                for (int x = 0; x < stride; x++)
-                {
-                    //get position relative to island
-                    float relX = x / stride * iX;
-                    float relY = y / stride * iY;
-
-                    //get the height of the island at this place
-                    auto h = island->getHeight({ relX, relY });
-
-                    //update the pixel accordingly
-                    m_nearestIslandHeightMap[(x + y*stride) * 4] = h * 255;
-                    m_nearestIslandHeightMap[(x + y*stride) * 4+1] = h * 255;
-                    m_nearestIslandHeightMap[(x + y*stride) * 4+2] = h * 255;
-                    m_nearestIslandHeightMap[(x + y*stride) * 4+3] = 255; //just 100% alpha
-                }
-            }
-
-            //update texture
-            m_heightMapTexture.update(m_nearestIslandHeightMap.data());
-            ImGui::Image(m_heightMapSprite);*/
-        }
-        else
-        {
-            kill();
-            ImGui::Text("Current Biome: Ocean");
-        }
-
-        //quick debug button to spawn island on player
-        if (ImGui::Button("Spawn Island"))
-        {
-            auto msg = getMessageBus().post<std::pair<sf::Vector2f,int>>(Messages::CREATE_ISLAND);
-            msg->first = entity.getPosition();
-            msg->second = xy::Util::Random::value(0, std::numeric_limits<int>::max());
-        }
-    });
+    entity.addComponent(boat);
+    entity.addComponent(body);
 
 }
 
@@ -131,79 +66,52 @@ PlayerController::~PlayerController()
 
 void PlayerController::entityUpdate(xy::Entity & entity, float dt)
 {
-    //get nearest visible Island
-    auto pos = entity.getPosition();
-    auto qtc = entity.getScene()->queryQuadTree({ pos.x - viewDistance, pos.y - viewDistance, viewDistance * 2,viewDistance * 2 });
+    //get the physics body
+    auto body = entity.getComponent<xy::Physics::RigidBody>();
 
-    //take out all the islands still in range
-    for (auto i : qtc)
+    //kill lateral velocity
+    auto currentRightNormal = body->getWorldVector({ 1,0 });
+    auto lateralVelocity = xy::Util::Vector::dot(currentRightNormal, body->getLinearVelocity()) * currentRightNormal;
+    auto impulse = body->getMass() * -lateralVelocity;
+    body->applyLinearImpulse(impulse, body->getWorldCentre());
+
+    //apply rudder force
+    auto applyRudder = [&](bool turningLeft)
     {
-        auto it = std::find(m_islandsInRange.begin(), m_islandsInRange.end(), i->getEntity());
-        if (it != m_islandsInRange.end())
-        {
-            m_islandsInRange.erase(it);
-        }
+        //max angle of the rudder in degrees
+        const auto maxRudderAngle = 5.f;
+
+        //get the velocity relative to the boat (i.e. the water velocity)
+        auto forwardVector = body->getWorldVector({ 0,-1 });
+        auto forwardVelocity = xy::Util::Vector::dot(forwardVector, body->getLinearVelocity()) * forwardVector;
+
+
+        //rotate the velocity by the rudder amount
+        auto v = xy::Util::Vector::rotate(forwardVelocity, turningLeft ? -maxRudderAngle : maxRudderAngle);
+
+        //now get the change in momentum between the vectors
+        auto dv = forwardVelocity - v;
+
+        //and apply that impulse to the rudder position
+        //which we'll assume to be the centre rear of the boat
+        impulse = body->getMass()*dv;
+        auto bounds = entity.globalBounds();
+        auto impulsePos = body->getWorldCentre() + body->getWorldVector({ bounds.width / 2,bounds.height });
+        body->applyForce(impulse, impulsePos);
+    };
+
+    //handle input
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
+    {
+        body->applyForceToCentre(xy::Util::Vector::rotate({ 0,-100 }, entity.getRotation()));
     }
-
-    //we've removed all the ones still in range, any remaining have gone out of range, put them to sleep
-    for (auto i : m_islandsInRange)
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
     {
-        auto island = i->getComponent<IslandComponent>();
-        island->setSleep(true);
+        applyRudder(true);
     }
-
-    //find the nearest one
-    float closestIsland(std::numeric_limits<float>::max());
-    for (auto c : qtc)
+    else if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
     {
-        auto e = c->getEntity();
-
-        //check if we're at least touching the entity
-        //but only if we can reach it
-        if (e->globalBounds().intersects(m_entity->globalBounds()))
-        {
-            //if it's an island
-            auto i = e->getComponent<IslandComponent>();
-            if (i)
-            {
-                auto e = c->getEntity();
-                auto d = xy::Util::Vector::lengthSquared(pos - e->getPosition());
-                if (d < closestIsland)
-                {
-                    closestIsland = d;
-                    m_closestIsland = e;
-                }
-                //make sure this island is awake
-                i->setSleep(false);
-                m_islandsInRange.push_back(e);
-            }
-
-            //if it's loot, take it
-            auto l = e->getComponent<LootComponent>();
-
-            if (l)
-            {
-                if (l)
-                {
-                    auto inventory = m_entity->getComponent<InventoryComponent>();
-                    inventory->give(l->take());
-                }
-
-            }
-        }
-    }
-
-    //update the verts for the nearest island
-   /* if (m_closestIsland)
-        m_debugLines->getDrawable()[0].position = entity.getWorldTransform().getInverse().transformPoint(m_closestIsland->getPosition());
-        */
-    if (m_world)
-    {
-     /*   bool onLand = m_world->isLand(entity.getWorldPosition());
-        if (onLand != m_onLand)
-        {
-            m_onLand = onLand;
-        }*/
+        applyRudder(false);
     }
 }
 
